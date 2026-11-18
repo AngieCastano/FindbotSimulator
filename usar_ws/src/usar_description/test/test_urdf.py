@@ -14,7 +14,7 @@ PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XACRO_FILE = os.path.join(PKG_DIR, 'urdf', 'findbot.urdf.xacro')
 PARAMS_FILE = os.path.join(PKG_DIR, 'config', 'robot.yaml')
 # Radio con el que usar_worldgen infla obstáculos (config/default_params.yaml).
-WORLDGEN_ROBOT_RADIUS = 0.28
+WORLDGEN_ROBOT_RADIUS = 0.30
 
 
 @pytest.fixture(scope='module')

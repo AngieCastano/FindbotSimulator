@@ -1,0 +1,9 @@
+# Nube de puntos de la cámara de profundidad para los costmaps de Nav2.
+# /camera/depth_image (640x480) → diezmado → /camera/depth/points (160x120 ≈ 19k puntos).
+# Sirve para ver obstáculos bajos (extremidades de víctimas) que quedan bajo el plano del LiDAR.
+depth_decimate:
+  decimation_x: 4
+  decimation_y: 4
+  interpolation: 0      # vecino más cercano (no mezcla profundidades de bordes)
+depth_to_cloud:
+  queue_size: 5

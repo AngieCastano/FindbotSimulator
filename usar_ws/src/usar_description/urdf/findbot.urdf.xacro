@@ -86,8 +86,11 @@
         <geometry><cylinder radius="${wh['radius']}" length="${wh['width']}"/></geometry>
         <material name="findbot_black"/>
       </visual>
+      <!-- Colisión esférica: el contacto cilindro-plano de Gazebo se produce en el borde
+           interior de la rueda, lo que reduce la separación efectiva (~13 %) y hace que la
+           odometría subestime los giros. Con una esfera el contacto queda en el plano medio. -->
       <collision>
-        <geometry><cylinder radius="${wh['radius']}" length="${wh['width']}"/></geometry>
+        <geometry><sphere radius="${wh['radius']}"/></geometry>
       </collision>
       <xacro:cylinder_inertia m="${wh['mass']}" r="${wh['radius']}" h="${wh['width']}"/>
     </link>

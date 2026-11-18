@@ -12,7 +12,7 @@ min_gap: 0.05                   # separación mínima entre objetos
 n_victims: 5
 robot_spawn: [0.0, 0.0, 0.0]    # x, y, yaw
 spawn_clearance: 1.0            # zona libre alrededor del spawn
-robot_radius: 0.28              # radio de inflado para el área explorable
+robot_radius: 0.30              # = robot_radius de Nav2 (radio físico 0.25 m + 5 cm de margen)
 grid_resolution: 0.05           # igual a la resolución del /map de slam_toolbox
 victim_reach_distance: 1.0      # distancia máx. desde zona alcanzable a la víctima
 wall_height: 1.0

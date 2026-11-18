@@ -32,7 +32,7 @@ class WorldParams:
     # Radio de la zona libre alrededor del spawn.
     spawn_clearance: float = 1.0
     # Radio del robot usado para inflar los obstáculos en la rejilla.
-    robot_radius: float = 0.28
+    robot_radius: float = 0.30
     # Resolución de la rejilla del área explorable (igual a la del /map de SLAM).
     grid_resolution: float = 0.05
     # Distancia máxima desde una celda alcanzable hasta la víctima para considerarla alcanzable.
