@@ -7,7 +7,13 @@
   <maintainer email="AngieCastano@todo.todo">AngieCastano</maintainer>
   <license>MIT</license>
 
-  <depend>rclpy</depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+
+  <test_depend>xacro</test_depend>
+  <test_depend>liburdfdom-tools</test_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

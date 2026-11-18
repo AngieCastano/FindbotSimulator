@@ -1,0 +1,52 @@
+# Parámetros físicos y de sensores del robot diferencial "findbot".
+# Longitudes en m, masas en kg, ángulos en rad, frecuencias en Hz.
+# El xacro (urdf/findbot.urdf.xacro) lee este archivo: no hay valores fijos en el URDF.
+
+chassis:
+  length: 0.40          # eje x
+  width: 0.30           # eje y
+  height: 0.12
+  z_offset: 0.03        # centro del chasis sobre base_link (base_link = eje de ruedas)
+  mass: 5.0
+
+wheels:
+  radius: 0.08
+  width: 0.04
+  separation: 0.34      # distancia entre centros de rueda
+  x_offset: 0.05        # posición longitudinal del eje respecto al centro del chasis
+  mass: 0.5
+  friction: 1.0
+
+caster:
+  radius: 0.04
+  x_offset: -0.14
+  mass: 0.2
+
+diff_drive:
+  max_linear_velocity: 0.5
+  max_angular_velocity: 1.5
+  max_linear_acceleration: 1.0
+  max_angular_acceleration: 2.0
+  odom_publish_frequency: 30
+
+lidar:                  # LiDAR 2D 360°
+  x: 0.0
+  z: 0.10               # sobre base_link → plano de escaneo a 0.18 m del suelo
+  update_rate: 10
+  samples: 360
+  min_range: 0.12
+  max_range: 12.0
+  range_resolution: 0.01
+  noise_stddev: 0.01    # ruido gaussiano (m)
+
+camera:                 # cámara RGB-D frontal, en la cara delantera del chasis
+  x: 0.205
+  z: 0.04               # sobre base_link → 0.12 m del suelo (bajo el plano del LiDAR)
+  pitch: 0.0
+  update_rate: 15
+  width: 640
+  height: 480
+  horizontal_fov: 1.2   # ~69°
+  near: 0.1
+  far: 10.0
+  noise_stddev: 0.007

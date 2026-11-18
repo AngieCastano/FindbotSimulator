@@ -4,9 +4,10 @@ import pytest
 from usar_worldgen.cli import main as generate_main
 from usar_worldgen.generator import derive_sub_seed, generate_world
 from usar_worldgen.params import WorldParams
+from usar_worldgen.spawn import load_spawn
 import yaml
 
-FILES = ('world.sdf', 'ground_truth.yaml')
+FILES = ('world.sdf', 'ground_truth.yaml', 'spawn.yaml')
 
 
 @pytest.mark.parametrize('seed', [0, 42, 1234])
@@ -71,6 +72,15 @@ def test_retries_are_deterministic_and_logged():
             assert again.retries == world.retries
             assert again.sub_seed == world.sub_seed
     assert with_retries, 'el escenario de prueba debería provocar al menos un reintento'
+
+
+def test_spawn_file_is_public_and_consistent(generate):
+    """spawn.yaml solo expone la pose inicial, nunca información del escenario."""
+    out, gt = generate('--seed', '8', '--robot-spawn', '2', '-3', '1.5')
+    data = yaml.safe_load((out / 'spawn.yaml').read_text())
+    assert set(data) == {'seed', 'robot_spawn'}
+    assert data['robot_spawn'] == gt['robot_spawn'] == {'x': 2.0, 'y': -3.0, 'yaw': 1.5}
+    assert load_spawn(str(out / 'spawn.yaml')) == {'x': 2.0, 'y': -3.0, 'yaw': 1.5}
 
 
 def test_invalid_params_fail_cleanly():

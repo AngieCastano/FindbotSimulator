@@ -17,6 +17,7 @@ from .generator import generate_world, GenerationError
 from .ground_truth import write_ground_truth
 from .params import load_params_yaml, WorldParams
 from .sdf_writer import write_world_sdf
+from .spawn import SPAWN_FILE, write_spawn
 
 WORLD_FILE = 'world.sdf'
 GROUND_TRUTH_FILE = 'ground_truth.yaml'
@@ -79,6 +80,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     gt_path = os.path.join(out_dir, GROUND_TRUTH_FILE)
     write_world_sdf(world, world_path)
     write_ground_truth(world, gt_path)
+    write_spawn(params, os.path.join(out_dir, SPAWN_FILE))
 
     logger.info('Semilla %d → intento %d (sub-semilla %d, %d reintentos)', params.seed,
                 world.attempt, world.sub_seed, len(world.retries))
