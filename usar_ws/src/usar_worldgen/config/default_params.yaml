@@ -1,0 +1,21 @@
+# Parámetros θ por defecto del generador procedural E = G(θ, s).
+# Uso: ros2 run usar_worldgen generate --params <este archivo> --seed 42
+# Longitudes en metros, ángulos en radianes. Los argumentos de la CLI tienen prioridad.
+
+seed: 42
+size: [20.0, 20.0]              # ancho (x) y largo (y) del área interior
+n_obstacles: 40
+obstacle_size_range: [0.3, 2.0] # lado de cajas / diámetro de cilindros
+obstacle_height_range: [0.4, 1.5]  # mínimo > altura del LiDAR para que sean visibles
+box_ratio: 0.6                  # fracción de cajas (resto: cilindros)
+min_gap: 0.05                   # separación mínima entre objetos
+n_victims: 5
+robot_spawn: [0.0, 0.0, 0.0]    # x, y, yaw
+spawn_clearance: 1.0            # zona libre alrededor del spawn
+robot_radius: 0.28              # radio de inflado para el área explorable
+grid_resolution: 0.05           # igual a la resolución del /map de slam_toolbox
+victim_reach_distance: 1.0      # distancia máx. desde zona alcanzable a la víctima
+wall_height: 1.0
+wall_thickness: 0.2
+max_attempts: 50                # reintentos con sub-semilla
+max_placement_tries: 2000       # intentos de colocación por objeto
