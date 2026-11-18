@@ -11,7 +11,9 @@ diferencial *findbot*. Los valores están en `usar_ws/src/usar_bringup/config/`.
 
 /map, /scan, /camera/depth/points ──► costmaps ──► planificador (SmacPlanner2D)
                                                 └► controlador (Rotation Shim + RPP)
-NavigateToPose (acción) ──► bt_navigator ──► /cmd_vel_nav ──► velocity_smoother ──► /cmd_vel
+NavigateToPose (acción) ──► bt_navigator ──► /cmd_vel_nav ──► velocity_smoother
+        ──► /cmd_vel_smoothed ──► collision_monitor ──────────► /cmd_vel
+teleop (scripts/teleop.sh) ──► /cmd_vel_teleop ──► collision_monitor_teleop ──► /cmd_vel
 ```
 
 El árbol de transformaciones es `map → odom → base_footprint → base_link → {lidar_link,
@@ -110,6 +112,33 @@ diferencial puede girar en el sitio) antes de ceder el control a RPP.
     pero se conservan los cercanos al robot, de modo que no se olvidan las extremidades
     detectadas por la cámara justo cuando el robot está maniobrando junto a ellas.
 
+## 6b. Filtro de seguridad — Collision Monitor
+
+Toda orden de velocidad, de Nav2 o de la teleoperación, pasa por un `collision_monitor`
+(`nav2_collision_monitor`) antes de llegar a las ruedas. A diferencia de los costmaps, que guían
+la planificación, el monitor actúa directamente sobre la velocidad con los datos más recientes
+del LiDAR y de la nube de profundidad (0.05–0.5 m de altura). Es una última barrera que también
+protege al robot cuando se conduce manualmente.
+
+Se usa un polígono de parada que **depende del sentido del movimiento** (`velocity_polygon`):
+
+| Movimiento | Zona vigilada (desde el centro de giro) | Justificación |
+|---|---|---|
+| Avance (v > 0.02 m/s) | 0.30 m por delante del frontal, 0.54 m de ancho | Distancia de frenado ≈ 0.18 m a 0.5 m/s (aceleración 1 m/s² + latencia de sensores); al detenerse, el obstáculo sigue dentro del campo de la cámara (recorte cercano 0.05 m). |
+| Retroceso (v < −0.02 m/s) | 0.15 m por detrás de la parte trasera | Solo el LiDAR vigila esta zona. |
+| Giro en el sitio | Círculo de 0.31 m | Envuelve el círculo que barre la carcasa (0.29 m). |
+
+Con una única huella circular, un obstáculo que quedara dentro del círculo bloquearía cualquier
+movimiento, incluido alejarse. Con zonas por sentido, si algo queda pegado delante el robot aún
+puede retroceder o girar.
+
+**Memoria de obstáculos.** Junto al frontal hay un punto ciego: el LiDAR pasa por encima de las
+extremidades y la cámara no ve a menos de 5 cm de su lente. Si el monitor usara solo datos
+instantáneos, al frenar con una extremidad en ese punto ciego dejaría de verla y volvería a
+permitir el avance. Por eso tiene una tercera fuente: el nodo `costmap_obstacle_cloud`
+(`usar_bringup`) publica las celdas letales del costmap local, que conserva las extremidades
+vistas por la cámara, como nube de puntos (`/local_costmap/obstacle_points`, 5 Hz).
+
 ## 7. Verificación y ajustes derivados de las pruebas
 
 `scripts/smoke_test_nav.py` comprueba de forma automática el árbol TF completo, la publicación de
@@ -131,7 +160,12 @@ Las pruebas comparando la odometría y la pose estimada por SLAM con la pose rea
    quedaba bloqueado: su huella tocaba la zona letal del costmap y el controlador y los
    comportamientos de recuperación rechazaban cualquier movimiento. Se aumentó a 0.30 m y se
    amplió el inflado (0.70 m, factor 2.0).
-3. **Obstáculos bajos (extremidades de víctimas).** Con el LiDAR y la cámara en la misma capa,
+3. **Centro de giro.** El eje de las ruedas estaba 5 cm por delante de `base_footprint`. Un robot
+   diferencial gira sobre el punto medio de su eje, pero la odometría y Nav2 suponen que lo hace
+   sobre `base_footprint`. Al girar en el sitio, la huella real se desplazaba hacia los
+   obstáculos y la odometría acumulaba error de posición (≈ 0.1 m). Se colocó `base_link` sobre
+   el eje de ruedas, como es la convención en ROS; el chasis queda desplazado 5 cm hacia atrás.
+4. **Obstáculos bajos (extremidades de víctimas).** Con el LiDAR y la cámara en la misma capa,
    el LiDAR borraba del costmap global las piernas y brazos detectados por la cámara; el
    planificador trazaba rutas sobre ellas y el robot se subía a la víctima. Se separaron los
    sensores en capas distintas (sección 3), y se eliminó el retroceso de las recuperaciones
@@ -142,9 +176,9 @@ de recorrido): 5/5 metas alcanzadas, error de la odometría ≤ 0.02 m y ≤ 0.1
 localización de SLAM ≤ 0.09 m y ≤ 0.6°, y ninguna detección de colisión inminente.
 
 **Limitación conocida.** La odometría de ruedas no detecta deslizamientos: si el robot choca o
-queda trabado (por ejemplo, al conducirlo manualmente contra un obstáculo o sobre una víctima),
-las ruedas siguen girando y la odometría acumula un desplazamiento falso que puede degradar el
-mapa. En modo autónomo Nav2 evita estas situaciones.
+queda trabado, las ruedas siguen girando y la odometría acumula un desplazamiento falso que
+degrada el mapa. El filtro de colisión evita los choques tanto en modo autónomo como al
+teleoperar con `scripts/teleop.sh`, pero no si se publica directamente en `/cmd_vel`.
 
 **Metas en huecos muy estrechos.** Si se pide una meta a menos de ~0.3 m de una extremidad (por
 ejemplo, entre dos víctimas muy juntas), Nav2 la aborta sin tocar a la víctima, pero el robot puede

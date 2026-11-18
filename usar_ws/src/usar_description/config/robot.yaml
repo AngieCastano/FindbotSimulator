@@ -6,6 +6,7 @@ chassis:
   length: 0.40          # eje x
   width: 0.30           # eje y
   height: 0.12
+  x_offset: -0.05       # centro del chasis respecto a base_link (el eje de ruedas va 5 cm por delante)
   z_offset: 0.03        # centro del chasis sobre base_link (base_link = eje de ruedas)
   mass: 5.0
 
@@ -13,13 +14,12 @@ wheels:
   radius: 0.08
   width: 0.04
   separation: 0.34      # distancia entre centros de rueda
-  x_offset: 0.05        # posición longitudinal del eje respecto al centro del chasis
   mass: 0.5
   friction: 1.0
 
 caster:
   radius: 0.04
-  x_offset: -0.14
+  x_offset: -0.19       # respecto a base_link (eje de ruedas)
   mass: 0.2
 
 diff_drive:
@@ -40,13 +40,13 @@ lidar:                  # LiDAR 2D 360°
   noise_stddev: 0.01    # ruido gaussiano (m)
 
 camera:                 # cámara RGB-D frontal, en la cara delantera del chasis
-  x: 0.205
+  x: 0.155              # respecto a base_link: cara delantera del chasis (0.15 m)
   z: 0.04               # sobre base_link → 0.12 m del suelo (bajo el plano del LiDAR)
   pitch: 0.0
   update_rate: 15
   width: 640
   height: 480
   horizontal_fov: 1.2   # ~69°
-  near: 0.1
+  near: 0.05            # recorte cercano: ve obstáculos bajos casi pegados al frontal
   far: 10.0
   noise_stddev: 0.007

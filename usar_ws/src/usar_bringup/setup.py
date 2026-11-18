@@ -30,6 +30,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'costmap_obstacle_cloud = usar_bringup.costmap_obstacle_cloud:main',
         ],
     },
 )

@@ -19,8 +19,9 @@
   <xacro:property name="cam" value="${p['camera']}"/>
 
   <!-- ===================== Macros de inercia ===================== -->
-  <xacro:macro name="box_inertia" params="m x y z">
+  <xacro:macro name="box_inertia" params="m x y z ox:=0">
     <inertial>
+      <origin xyz="${ox} 0 0"/>
       <mass value="${m}"/>
       <inertia ixx="${m * (y*y + z*z) / 12}" ixy="0" ixz="0"
                iyy="${m * (x*x + z*z) / 12}" iyz="0" izz="${m * (x*x + y*y) / 12}"/>
@@ -59,16 +60,16 @@
 
   <link name="base_link">
     <visual>
-      <origin xyz="0 0 ${ch['z_offset']}"/>
+      <origin xyz="${ch['x_offset']} 0 ${ch['z_offset']}"/>
       <geometry><box size="${ch['length']} ${ch['width']} ${ch['height']}"/></geometry>
       <material name="findbot_blue"/>
     </visual>
     <collision>
-      <origin xyz="0 0 ${ch['z_offset']}"/>
+      <origin xyz="${ch['x_offset']} 0 ${ch['z_offset']}"/>
       <geometry><box size="${ch['length']} ${ch['width']} ${ch['height']}"/></geometry>
     </collision>
     <xacro:box_inertia m="${ch['mass']}" x="${ch['length']}" y="${ch['width']}"
-                       z="${ch['height']}"/>
+                       z="${ch['height']}" ox="${ch['x_offset']}"/>
   </link>
 
   <!-- ===================== Ruedas motrices ===================== -->
@@ -77,7 +78,9 @@
       <parent link="base_link"/>
       <child link="${side}_wheel_link"/>
       <!-- roll -π/2: el eje z de la rueda apunta a +y; giro positivo = avance -->
-      <origin xyz="${wh['x_offset']} ${y_sign * wh['separation'] / 2} 0"
+      <!-- base_link está sobre el eje de ruedas: es el centro de giro del robot diferencial,
+           como suponen la odometría y Nav2. -->
+      <origin xyz="0 ${y_sign * wh['separation'] / 2} 0"
               rpy="${-pi / 2} 0 0"/>
       <axis xyz="0 0 1"/>
     </joint>

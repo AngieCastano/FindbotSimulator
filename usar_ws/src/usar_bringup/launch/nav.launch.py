@@ -5,7 +5,10 @@ Uso:
     ros2 launch usar_bringup nav.launch.py seed:=42
     ros2 launch usar_bringup nav.launch.py seed:=42 gui:=false rviz:=false   # sin ventanas
 
-Cadena de velocidad: controller/behavior → /cmd_vel_nav → velocity_smoother → /cmd_vel.
+Cadena de velocidad (los dos filtros de colisión usan LiDAR + nube de profundidad):
+    controller/behavior → /cmd_vel_nav → velocity_smoother → /cmd_vel_smoothed
+        → collision_monitor → /cmd_vel
+    teleop (scripts/teleop.sh) → /cmd_vel_teleop → collision_monitor_teleop → /cmd_vel
 """
 
 import os
@@ -20,7 +23,8 @@ from launch_ros.descriptions import ComposableNode
 import yaml
 
 NAV2_NODES = ['controller_server', 'planner_server', 'behavior_server',
-              'velocity_smoother', 'bt_navigator']
+              'velocity_smoother', 'collision_monitor', 'collision_monitor_teleop',
+              'bt_navigator']
 SIM_TIME = {'use_sim_time': True}
 
 
@@ -63,7 +67,13 @@ def _nav2_nodes(params_file: str, bt_xml: str):
              output='screen', parameters=params, remappings=to_nav),
         Node(package='nav2_velocity_smoother', executable='velocity_smoother',
              name='velocity_smoother', output='screen', parameters=params,
-             remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')]),
+             remappings=[('cmd_vel', 'cmd_vel_nav')]),
+        Node(package='usar_bringup', executable='costmap_obstacle_cloud',
+             name='costmap_obstacle_cloud', output='screen', parameters=params),
+        Node(package='nav2_collision_monitor', executable='collision_monitor',
+             name='collision_monitor', output='screen', parameters=params),
+        Node(package='nav2_collision_monitor', executable='collision_monitor',
+             name='collision_monitor_teleop', output='screen', parameters=params),
         Node(package='nav2_bt_navigator', executable='bt_navigator', name='bt_navigator',
              output='screen', parameters=[*params, {'default_nav_to_pose_bt_xml': bt_xml}]),
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',

@@ -54,9 +54,9 @@ def test_sensors_and_plugins(urdf_xml):
 def test_footprint_fits_worldgen_radius(params):
     """La huella del robot cabe en el radio usado para el área explorable."""
     ch, wh = params['chassis'], params['wheels']
-    corners = math.hypot(ch['length'] / 2, ch['width'] / 2)
-    wheel = math.hypot(abs(wh['x_offset']) + wh['radius'],
-                       wh['separation'] / 2 + wh['width'] / 2)
+    # Distancias medidas desde base_footprint (centro de giro, sobre el eje de ruedas).
+    corners = math.hypot(abs(ch['x_offset']) + ch['length'] / 2, ch['width'] / 2)
+    wheel = wh['separation'] / 2 + wh['radius']  # colisión esférica de la rueda
     assert max(corners, wheel) <= WORLDGEN_ROBOT_RADIUS
 
 
