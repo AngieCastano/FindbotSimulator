@@ -1,0 +1,40 @@
+# --- Artefactos de colcon / ROS 2 ---
+usar_ws/build/
+usar_ws/install/
+usar_ws/log/
+build/
+install/
+log/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Resultados de experimentos (datos pesados, no versionar) ---
+results/*
+!results/.gitkeep
+
+# --- Mundos generados proceduralmente (reproducibles por semilla) ---
+worlds/
+usar_ws/worlds/
+
+# --- Gazebo / RViz ---
+*.log
+core.*
+
+# --- Entorno local ---
+.env
+.venv/
+venv/
+
+# --- Editores / SO ---
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

@@ -1,0 +1,24 @@
+services:
+  findbot:
+    build:
+      context: ./docker
+      args:
+        USER_UID: ${UID:-1000}
+        USER_GID: ${GID:-1000}
+    image: findbot-sim:jazzy-harmonic
+    container_name: findbot_sim
+    network_mode: host
+    ipc: host
+    stdin_open: true
+    tty: true
+    working_dir: /home/findbot/FindbotSimulator/usar_ws
+    runtime: nvidia
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ROS_DOMAIN_ID=0
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - .:/home/findbot/FindbotSimulator
