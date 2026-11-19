@@ -8,7 +8,7 @@ import pytest
 LAUNCH_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'launch')
 
 
-@pytest.mark.parametrize('name', ['sim.launch.py', 'nav.launch.py'])
+@pytest.mark.parametrize('name', ['sim.launch.py', 'nav.launch.py', 'exploration.launch.py'])
 def test_launch_description_builds(name):
     spec = importlib.util.spec_from_file_location(name.replace('.', '_'),
                                                   os.path.join(LAUNCH_DIR, name))

@@ -1,0 +1,57 @@
+# Parámetros del explorador por fronteras (Capa 4a). Ver docs/fase4_exploracion.md.
+frontier_explorer:
+  ros__parameters:
+    # Función de costo J(g) = α·C(g) − β·I(g), con C e I normalizados a [0, 1] entre candidatos.
+    alpha: 1.0                  # peso del costo de trayectoria C(g)
+    beta: 1.0                   # peso de la ganancia de información I(g)
+
+    map_topic: /map
+    costmap_topic: /global_costmap/costmap
+    global_frame: map
+    robot_frame: base_footprint
+
+    # Clasificación de celdas de /map (OccupancyGrid: -1 desconocido, 0..100 ocupación).
+    free_threshold: 20
+    occupied_threshold: 65
+
+    # Fronteras
+    min_cluster_size: 8         # celdas (8 × 0.05 m = 0.4 m de frontera como mínimo)
+    segment_size: 1.5           # m: los clusters se dividen en tramos de este tamaño
+    info_radius: 1.0            # m: radio en el que se cuentan las celdas desconocidas, I(g)
+    min_info_gain: 10.0         # celdas: por debajo, la frontera se considera explorada
+
+    # Meta segura asociada a cada frontera
+    goal_search_radius: 1.0     # m: búsqueda de una celda con holgura alrededor de la frontera
+    min_goal_clearance: 0.45    # m al obstáculo más cercano del /map (robot_radius 0.30 + 0.15)
+    max_goal_cost: 70           # costmap global (escala 0..100): ≈ 0.47 m de un obstáculo
+    min_goal_distance: 0.5      # m: descarta metas pegadas al robot
+
+    # Costo de trayectoria
+    max_candidates: 6           # K: candidatos más cercanos a los que se les pide ruta a Nav2
+    plan_timeout: 3.0           # s por petición a compute_path_to_pose
+    plan_fail_penalty: 3.0      # sin ruta: C = distancia euclidiana × penalización
+
+    # Ejecución
+    replan_period: 5.0          # s: cada cuánto se comprueba si la frontera de la meta sigue abierta
+    blacklist_radius: 0.6       # m: metas terminadas o fallidas no se repiten en este radio
+    progress_distance: 0.3      # m que debe avanzar el robot...
+    progress_timeout: 20.0      # ...en este tiempo (s); si no, la meta se cancela
+    goal_timeout: 120.0         # s máximos por meta
+
+    # Criterio de fin
+    no_frontier_timeout: 10.0   # s seguidos sin fronteras válidas → fin
+    max_time: 900.0             # s (15 min) de exploración como máximo
+    tick_period: 0.5            # s: periodo del ciclo de decisión
+    rejection_retry_delay: 2.0  # s: espera antes de reintentar una meta rechazada por Nav2
+    max_rejections: 5           # rechazos seguidos tras los que la meta se da por fallida
+    quick_failure_time: 3.0     # s: un aborto antes de este tiempo cuenta como rechazo
+
+    # Escape de la zona inscrita del costmap (desde ella Nav2 no planifica: "Start occupied").
+    # La maniobra se publica a través del collision_monitor de órdenes externas a Nav2.
+    escape_cmd_topic: /cmd_vel_teleop
+    escape_cost_threshold: 99   # costmap global (0..100): 99 = inscrito, 100 = letal
+    escape_probe_distances: [0.15, 0.3, 0.45]   # m: puntos evaluados en cada dirección
+    escape_distance: 0.25       # m máximos de desplazamiento
+    escape_speed: 0.12          # m/s
+    escape_turn_speed: 0.6      # rad/s
+    escape_timeout: 15.0        # s

@@ -92,7 +92,7 @@ diferencial puede girar en el sitio) antes de ceder el control a RPP.
 | `lookahead_dist` (min–max) | 0.6 m (0.3–0.9) | Un *lookahead* corto sigue la ruta con precisión en pasillos estrechos; escala con la velocidad (`lookahead_time` = 1.5 s). |
 | `regulated_linear_scaling_min_radius` | 0.9 m | En curvas de radio menor a 0.9 m reduce la velocidad para no salirse de la ruta. |
 | `use_cost_regulated_linear_velocity_scaling` | `true` | Reduce la velocidad cuando el robot pasa cerca de obstáculos (a menos de 0.5 m). |
-| `use_collision_detection` | `true` | Proyecta la trayectoria 1 s hacia adelante y se detiene si colisionaría. |
+| `use_collision_detection` | `true` | Proyecta la trayectoria 1 s hacia adelante y se detiene si el centro del robot entraría en la zona inscrita del costmap. La parada física la garantiza además el collision_monitor (sección 6b). |
 | `angular_dist_threshold` (Shim) | 0.785 rad (45°) | Si el error de orientación supera 45°, primero gira en el sitio a 1 rad/s. |
 | `allow_reversing` | `false` | El robot solo tiene sensores de profundidad al frente, por lo que no debe circular hacia atrás. |
 | Tolerancia de meta | 0.25 m / 0.5 rad | Suficiente para exploración e inspección de víctimas; no se requiere precisión de atraque. |
@@ -120,17 +120,25 @@ la planificación, el monitor actúa directamente sobre la velocidad con los dat
 del LiDAR y de la nube de profundidad (0.05–0.5 m de altura). Es una última barrera que también
 protege al robot cuando se conduce manualmente.
 
-Se usa un polígono de parada que **depende del sentido del movimiento** (`velocity_polygon`):
+Se usa el modo **approach**: el monitor simula durante `time_before_collision` (1.0 s para Nav2,
+1.2 s para la teleoperación, que puede ir a 0.5 m/s) la trayectoria que produciría la velocidad
+pedida (v, w), con la **forma física del robot**, y reduce la velocidad lo necesario para que no
+haya colisión en ese horizonte. Un arco que se aleja de un obstáculo cercano se permite y uno que
+va hacia él frena hasta detenerse.
 
-| Movimiento | Zona vigilada (desde el centro de giro) | Justificación |
-|---|---|---|
-| Avance (v > 0.02 m/s) | 0.30 m por delante del frontal, 0.54 m de ancho | Distancia de frenado ≈ 0.18 m a 0.5 m/s (aceleración 1 m/s² + latencia de sensores); al detenerse, el obstáculo sigue dentro del campo de la cámara (recorte cercano 0.05 m). |
-| Retroceso (v < −0.02 m/s) | 0.15 m por detrás de la parte trasera | Solo el LiDAR vigila esta zona. |
-| Giro en el sitio | Círculo de 0.31 m | Envuelve el círculo que barre la carcasa (0.29 m). |
+El polígono de la huella (desde el centro de giro) envuelve el chasis (x ∈ [−0.25, 0.15] m,
+y ∈ [−0.15, 0.15] m) y las ruedas (hasta ±0.25 m) con 5 cm de margen delante y 2 cm en el resto, y
+tiene las esquinas traseras achaflanadas. Ningún vértice queda a más de 0.30 m del centro, el
+`robot_radius` de los costmaps: mientras el centro del robot esté fuera de la zona inscrita del
+costmap, el robot siempre puede girar en el sitio.
 
-Con una única huella circular, un obstáculo que quedara dentro del círculo bloquearía cualquier
-movimiento, incluido alejarse. Con zonas por sentido, si algo queda pegado delante el robot aún
-puede retroceder o girar.
+Alternativas descartadas en las pruebas:
+
+| Alternativa | Problema observado |
+|---|---|
+| Huella circular de 0.30 m | Un obstáculo dentro del círculo bloquea todo movimiento, incluido alejarse. |
+| Zonas de parada por sentido del movimiento (`velocity_polygon`) | Solo miran si hay puntos delante, no la trayectoria: bloquean un arco que se aleja del obstáculo y el robot queda inmóvil. |
+| Polígono con márgenes de 3–5 cm | Sus esquinas quedaban a 0.35 m del centro: un obstáculo a 0.31 m ya estaba dentro y no se podía ni girar. |
 
 **Memoria de obstáculos.** Junto al frontal hay un punto ciego: el LiDAR pasa por encima de las
 extremidades y la cámara no ve a menos de 5 cm de su lente. Si el monitor usara solo datos

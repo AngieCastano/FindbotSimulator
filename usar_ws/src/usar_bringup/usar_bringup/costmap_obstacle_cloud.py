@@ -12,6 +12,7 @@ Solo usa datos propios del robot (/local_costmap/costmap); nunca el ground truth
 from nav_msgs.msg import OccupancyGrid
 import numpy as np
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import PointCloud2
@@ -59,7 +60,7 @@ def main():
     node = CostmapObstacleCloud()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()

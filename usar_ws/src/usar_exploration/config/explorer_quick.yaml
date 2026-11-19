@@ -1,0 +1,5 @@
+# Prueba corta: se carga ENCIMA de explorer.yaml y solo cambia lo indicado aquí.
+# Uso: ros2 launch usar_bringup exploration.launch.py seed:=42 quick:=true
+frontier_explorer:
+  ros__parameters:
+    max_time: 300.0             # s (5 min de exploración)
