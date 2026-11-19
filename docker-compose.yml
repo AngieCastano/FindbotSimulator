@@ -7,6 +7,8 @@ services:
         USER_GID: ${GID:-1000}
     image: findbot-sim:jazzy-harmonic
     container_name: findbot_sim
+    # Arranca solo tras reiniciar el computador, salvo que se haya detenido con `docker compose down/stop`.
+    restart: unless-stopped
     network_mode: host
     ipc: host
     stdin_open: true
