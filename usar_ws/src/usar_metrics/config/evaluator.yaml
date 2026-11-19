@@ -1,0 +1,29 @@
+# Parámetros del evaluador (usar_metrics). El evaluador es el ÚNICO nodo que lee el ground truth;
+# la ruta del ground truth y la carpeta de resultados las fija mission.launch.py.
+evaluator:
+  ros__parameters:
+    use_sim_time: true
+    # Distancia máxima (m) entre víctima estimada y real para contarla como detectada. Una
+    # víctima mide 1.7 × 0.6 m: 1 m admite estimar cualquier punto del cuerpo, pero no confundir
+    # víctimas separadas por más de un cuerpo.
+    association_threshold: 1.0
+    # Periodo (s de tiempo simulado) de las muestras de la evolución (CSV).
+    sample_period: 10.0
+    # Celda del /map libre si 0 ≤ valor ≤ free_threshold y ocupada si valor ≥ occupied_threshold
+    # (mismos umbrales que nav2_map_server: 0.25 y 0.65).
+    free_threshold: 25
+    occupied_threshold: 65
+    # Pasos de odometría menores que este (m) se acumulan hasta superarlo (ruido en reposo).
+    odom_min_step: 0.001
+    # Distancia (m) entre puntos guardados de la trayectoria (solo para la imagen).
+    trajectory_step: 0.05
+    # Espera (s simulados) tras el fin del explorador para recibir las últimas detecciones.
+    finish_delay: 3.0
+    # Seguridad: si el explorador no termina en este tiempo (s simulados), se cierra la misión.
+    # Debe ser mayor que max_time del explorador (900 s) más el arranque.
+    max_mission_time: 1200.0
+    map_topic: /map
+    odom_topic: /odom
+    detections_topic: /victims/detections
+    status_topic: /exploration/status
+    image_dpi: 150

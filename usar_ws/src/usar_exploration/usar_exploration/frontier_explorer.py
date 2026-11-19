@@ -68,6 +68,7 @@ PARAMS = {
     'escape_speed': 0.12,
     'escape_turn_speed': 0.6,
     'escape_timeout': 15.0,
+    'stuck_failures': 2,
     'max_rejections': 5,
 }
 
@@ -99,6 +100,9 @@ class FrontierExplorer(Node):
         self.escape_pub = self.create_publisher(Twist, self.p['escape_cmd_topic'], 10)
         self.escape = None
         self.escapes = 0
+        # Metas seguidas fallidas sin progreso con el robot en el mismo sitio.
+        self.stuck_count = 0
+        self.stuck_anchor = None
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -400,6 +404,7 @@ class FrontierExplorer(Node):
             return
         if not success:
             self.goals_failed += 1
+        self._update_stuck(success, reason)
         self.blacklist.append(self.goal.goal)
         self.get_logger().info(
             f'Meta {"completada" if success else "fallida"} ({reason}); '
@@ -409,27 +414,49 @@ class FrontierExplorer(Node):
         self.state = IDLE
 
     # ------------------------------------------------------------------ escape
+    def _update_stuck(self, success, reason):
+        """Cuenta las metas seguidas fallidas sin progreso con el robot en el mismo sitio."""
+        robot = self._robot_xy()
+        if success or reason != 'sin progreso' or robot is None:
+            self.stuck_count, self.stuck_anchor = 0, None
+            return
+        if (self.stuck_anchor is None or math.hypot(robot[0] - self.stuck_anchor[0],
+                                                    robot[1] - self.stuck_anchor[1])
+                > self.p['progress_distance']):
+            self.stuck_anchor, self.stuck_count = robot, 1
+        else:
+            self.stuck_count += 1
+
     def _start_escape_if_trapped(self) -> bool:
         """
-        Si el centro del robot está en la zona inscrita del costmap global, inicia el escape.
+        Inicia la maniobra de escape si el robot está atrapado.
 
-        Desde esa zona el planificador de Nav2 rechaza cualquier ruta ("Start occupied"), aunque
-        físicamente haya espacio. Devuelve True si se inició la maniobra.
+        Dos casos: (1) el centro del robot está en la zona inscrita del costmap global; desde
+        ahí el planificador de Nav2 rechaza cualquier ruta ("Start occupied"), aunque
+        físicamente haya espacio. (2) Las últimas `stuck_failures` metas fallaron sin progreso
+        con el robot en el mismo sitio: el controlador ve una colisión en su trayectoria y no
+        avanza hacia ninguna meta. Devuelve True si se inició la maniobra.
         """
         pose = self._robot_pose()
         if self.costmap_msg is None or pose is None:
             return False
         cost, info = self._grid(self.costmap_msg)
-        if fc.cost_at(cost, info, pose[0], pose[1], outside=0) < self.p['escape_cost_threshold']:
+        inscribed = (fc.cost_at(cost, info, pose[0], pose[1], outside=0)
+                     >= self.p['escape_cost_threshold'])
+        stuck = self.stuck_count >= self.p['stuck_failures'] > 0
+        if not inscribed and not stuck:
             return False
         heading, forward = fc.escape_direction(cost, info, *pose,
                                                self.p['escape_probe_distances'])
         self.escapes += 1
+        self.stuck_count, self.stuck_anchor = 0, None
         self.escape = {'heading': heading if forward else heading + math.pi,
                        'forward': forward, 'start': pose[:2], 'since': self._now(),
-                       'turning': True}
+                       'turning': True, 'inscribed': inscribed}
+        cause = ('Robot en zona inscrita del costmap' if inscribed else
+                 f'{self.p["stuck_failures"]} metas seguidas sin progreso en el mismo sitio')
         self.get_logger().info(
-            f'Robot en zona inscrita del costmap: escape {self.escapes} hacia '
+            f'{cause}: escape {self.escapes} hacia '
             f'{math.degrees(heading):.0f}° ({"avanzando" if forward else "retrocediendo"})')
         self.state = ESCAPING
         return True
@@ -451,7 +478,10 @@ class FrontierExplorer(Node):
                 cost, info = self._grid(self.costmap_msg)
                 free = (fc.cost_at(cost, info, pose[0], pose[1], 0)
                         < self.p['escape_cost_threshold'])
-                if moved >= self.p['escape_distance'] or (free and moved > 0.05):
+                # Si empezó en la zona inscrita, basta con salir de ella; si no, recorre
+                # escape_distance completo.
+                left_zone = esc['inscribed'] and free and moved > 0.05
+                if moved >= self.p['escape_distance'] or left_zone:
                     done = True
                 else:
                     speed = self.p['escape_speed']

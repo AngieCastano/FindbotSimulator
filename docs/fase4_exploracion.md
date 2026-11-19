@@ -67,6 +67,12 @@ pose estimada (TF `map → base_footprint`); **no tiene acceso al ground truth**
     recta, porque girar cerca de un obstáculo barre las esquinas de la carcasa. Después se desplaza
     hasta `escape_distance` o hasta salir de la zona. La orden se publica en `/cmd_vel_teleop`, de
     modo que pasa por el collision_monitor y no puede provocar un choque.
+
+    *Añadido en la Fase 6:* el escape también se activa tras `stuck_failures` metas seguidas
+    fallidas por falta de progreso sin que el robot se mueva del sitio. En la prueba de la Fase 6
+    el robot quedó 140 s inmóvil fuera de la zona inscrita: el controlador RPP veía una colisión
+    en su trayectoria ("Controller patience exceeded") y abortaba cada meta. En ese caso el
+    escape recorre `escape_distance` completo.
 12. **Fin:** cuando no hay fronteras válidas durante `no_frontier_timeout` seguidos, o al agotar
     `max_time`. El nodo cancela la meta en curso y publica `finished:no_frontiers` o
     `finished:timeout` en `/exploration/status`.
@@ -95,6 +101,7 @@ pose estimada (TF `map → base_footprint`); **no tiene acceso al ground truth**
 | `quick_failure_time` | 3 s | Un aborto tan rápido indica que Nav2 no pudo ni empezar (p. ej. "Start occupied"). |
 | `escape_cost_threshold` | 99 | Costo "inscrito" en la escala 0–100 del costmap publicado (100 = letal). |
 | `escape_distance` / `escape_speed` | 0.25 m / 0.12 m/s | Basta para salir de la zona inscrita (0.30 m) a baja velocidad. |
+| `stuck_failures` | 2 | Una meta sin progreso puede deberse a la meta; dos seguidas en el mismo sitio indican que el robot está bloqueado. |
 
 ## 4. Interfaces
 
