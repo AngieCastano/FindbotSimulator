@@ -62,6 +62,11 @@ def main():
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError:
+        # Carrera de rclpy al cerrar con Ctrl+C (espera o lee con el contexto ya cerrado);
+        # cualquier otro RuntimeError se propaga.
+        if rclpy.ok():
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

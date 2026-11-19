@@ -102,7 +102,15 @@ def _launch_setup(context):
         PythonLaunchDescriptionSource(os.path.join(
             get_package_share_directory('slam_toolbox'), 'launch', 'online_async_launch.py')),
         launch_arguments={'slam_params_file': config('slam_params'),
-                          'use_sim_time': 'true'}.items())
+                          'use_sim_time': 'true',
+                          # Lo activa lifecycle_manager_slam: el arranque automático del launch de
+                          # slam_toolbox falla de forma intermitente (se queda en "Configuring" y
+                          # nunca publica map→odom, lo que aborta el arranque de Nav2).
+                          'use_lifecycle_manager': 'true'}.items())
+    slam_manager = Node(
+        package='nav2_lifecycle_manager', executable='lifecycle_manager',
+        name='lifecycle_manager_slam', output='screen',
+        parameters=[config('nav2_params').perform(context), SIM_TIME])
 
     rviz = [Node(
         package='rviz2', executable='rviz2', output='log',
@@ -110,8 +118,8 @@ def _launch_setup(context):
         parameters=[SIM_TIME])] if open_rviz else []
 
     nav2 = _nav2_nodes(config('nav2_params').perform(context), config('bt_xml').perform(context))
-    return [sim, slam, _depth_cloud_container(config('depth_params').perform(context)),
-            *nav2, *rviz]
+    depth = _depth_cloud_container(config('depth_params').perform(context))
+    return [sim, slam, slam_manager, depth, *nav2, *rviz]
 
 
 def generate_launch_description():

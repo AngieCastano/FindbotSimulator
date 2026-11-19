@@ -84,6 +84,18 @@ Visualization Manager:
       Namespaces:
         {}
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Victimas detectadas
+      Enabled: true
+      Topic:
+        Value: /victims/markers
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Namespaces:
+        {}
+      Value: true
     - Class: rviz_default_plugins/PointStamped
       Name: Punto lookahead (RPP)
       Enabled: true
@@ -159,10 +171,10 @@ Visualization Manager:
       Keep: 50
       Value: false
     - Class: rviz_default_plugins/Image
-      Name: Camara RGB
+      Name: Camara (deteccion)
       Enabled: true
       Topic:
-        Value: /camera/image
+        Value: /victims/debug_image
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
@@ -223,7 +235,7 @@ Window Geometry:
   Width: 1400
   Hide Left Dock: false
   Hide Right Dock: true
-  Camara RGB:
+  Camara (deteccion):
     collapsed: false
   Displays:
     collapsed: false

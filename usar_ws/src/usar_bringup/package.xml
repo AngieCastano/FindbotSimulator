@@ -36,6 +36,7 @@
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>usar_description</exec_depend>
   <exec_depend>usar_exploration</exec_depend>
+  <exec_depend>usar_detection</exec_depend>
   <exec_depend>usar_worldgen</exec_depend>
 
   <test_depend>ament_copyright</test_depend>

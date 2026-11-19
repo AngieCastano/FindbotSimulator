@@ -37,6 +37,12 @@ sin acumular retraso, lo que es adecuado para exploración en tiempo real.
 | `loop_search_maximum_distance` | 4 m | Radio de búsqueda de cierres de lazo, acorde al tamaño del escenario (20 × 20 m). |
 | `transform_publish_period` | 0.02 s | TF `map→odom` a 50 Hz, suficiente para el controlador (20 Hz). |
 
+**Arranque.** slam_toolbox es un nodo con ciclo de vida. Su launch lo activa automáticamente
+mediante eventos, pero en las pruebas ese mecanismo falló de forma intermitente: el nodo quedaba
+en "Configuring", nunca publicaba `map → odom` y el arranque de Nav2 se abortaba por falta de TF.
+Por eso lo activa un `lifecycle_manager_slam` de Nav2 (`use_lifecycle_manager:=true`), que
+gestiona las transiciones. En tres arranques seguidos, SLAM y Nav2 quedaron activos en unos 10 s.
+
 ## 3. Representación del entorno — costmaps
 
 Nav2 usa dos mapas de costo: uno **global** (todo el mapa, para planificar rutas) y uno **local**

@@ -1,5 +1,7 @@
 """
-Exploración autónoma (Capa 4a): navegación (nav.launch.py) + frontier_explorer.
+Exploración autónoma con detección de víctimas (Capas 4a y 4b).
+
+nav.launch.py + frontier_explorer + victim_detector.
 
 Uso:
     ros2 launch usar_bringup exploration.launch.py seed:=42
@@ -7,10 +9,12 @@ Uso:
     ros2 launch usar_bringup exploration.launch.py seed:=42 quick:=true   # prueba de 5 min
 
 El robot explora solo y se detiene cuando no quedan fronteras o se agota max_time
-(estado en /exploration/status; fronteras en /exploration/frontiers).
+(estado en /exploration/status; fronteras en /exploration/frontiers). Las víctimas confirmadas
+se publican en /victims/markers y /victims/detections y se registran en results/.
 """
 
 import os
+from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -38,6 +42,21 @@ def generate_launch_description():
         return [Node(package='usar_exploration', executable='frontier_explorer',
                      name='frontier_explorer', output='screen',
                      parameters=[*params, {'use_sim_time': True}])]
+
+    def detector(context):
+        """Detector de víctimas; su log CSV va a results_dir con la semilla en el nombre."""
+        if LaunchConfiguration('detection').perform(context).lower() != 'true':
+            return []
+        seed = LaunchConfiguration('seed').perform(context)
+        return [Node(package='usar_detection', executable='victim_detector',
+                     name='victim_detector', output='screen',
+                     parameters=[LaunchConfiguration('detector_params').perform(context),
+                                 {'use_sim_time': True,
+                                  'log_dir': LaunchConfiguration('results_dir').perform(context),
+                                  'log_prefix': f'victims_seed{seed}'}])]
+
+    # <ws>/install/usar_bringup/share/usar_bringup → <repo>/results (junto a usar_ws)
+    default_results = str(Path(bringup_share).resolve().parents[3].parent / 'results')
     return LaunchDescription([
         DeclareLaunchArgument('seed', default_value='42',
                               description='Semilla del escenario procedural'),
@@ -53,6 +72,13 @@ def generate_launch_description():
             description='Parámetros del explorador (α, β, umbrales, tiempo máximo)'),
         DeclareLaunchArgument('quick', default_value='false',
                               description='Prueba corta (explorer_quick.yaml: 5 min)'),
+        DeclareLaunchArgument('detection', default_value='true',
+                              description='Ejecutar el detector de víctimas'),
+        DeclareLaunchArgument('detector_params', default_value=os.path.join(
+            get_package_share_directory('usar_detection'), 'config', 'detector.yaml')),
+        DeclareLaunchArgument('results_dir', default_value=default_results,
+                              description='Carpeta del log de víctimas detectadas'),
         nav,
         OpaqueFunction(function=explorer),
+        OpaqueFunction(function=detector),
     ])

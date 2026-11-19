@@ -376,3 +376,9 @@ costmap_obstacle_cloud:
     cloud_topic: /local_costmap/obstacle_points
     lethal_value: 100                      # OccupancyGrid: 100 = celda letal (obstáculo real)
     point_height: 0.1                      # dentro de la banda de altura del collision_monitor
+
+lifecycle_manager_slam:
+  ros__parameters:
+    autostart: true
+    node_names: ["slam_toolbox"]
+    bond_timeout: 0.0                      # slam_toolbox no mantiene "bond" con el gestor
