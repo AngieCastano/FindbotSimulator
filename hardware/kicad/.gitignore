@@ -1,0 +1,6 @@
+# Generados al exportar (se regeneran con build.sh)
+out/findbot.net
+__pycache__/
+*-backups/
+fp-info-cache
+*.kicad_prl

@@ -105,6 +105,22 @@ y `/odom` va de `odom` a `base_footprint`, igual que en el xacro.
 - Simulaciones SPICE + criterios: `hardware/spice/run_spice.sh` → `hardware/spice/results/summary.txt`
   y gráficos `.svg`. Los netlists leen `results/params.inc`, generado desde `robot_hw.yaml`;
   los modelos de comportamiento (MCP6004, AO3400) están en `spice/models/`.
+- Esquemático: `hardware/kicad/build.sh` → genera `findbot.kicad_sch` con `gen_schematic.py`,
+  corre el ERC (debe dar 0 errores y 0 advertencias), verifica la netlist contra la tabla de pines
+  y los valores de la H2 (`check_netlist.py`) y exporta `out/findbot.pdf` y `out/findbot_bom.csv`.
+
+## Esquemático (H3) — placa base con módulos
+- **`gen_schematic.py` es la fuente**: los cambios hechos a mano en KiCad se pierden al regenerar.
+  Para cambiar algo, edita `robot_hw.yaml` (valores, pines) o el generador (componentes) y corre `build.sh`.
+- Un solo plano A2 con 3 bloques (alimentación; ESP32, motores, encoders e IMU; analógico).
+  Conexión por etiquetas de red en cada pin.
+- Módulos sobre zócalos: ESP32 DevKit V1 (sin huella todavía: 2 zócalos 1x15, separación a medir),
+  TB6612 tipo Pololu (**verificar el orden de pines** con la placa comprada), GY-521, 2× MP1584,
+  MLX90640 (no montar, fase 2). Sensores externos por JST XH: motores (6 pines), TGS4161 (4), HB100 (3).
+- Protección contra inversión: IRF4905 (MOSFET P, TO-220) en el lado alto, puerta a GND por 10 kΩ.
+- Pull-downs de 15 kΩ de los encoders (R8–R11) marcados "no montar": solo para el caso B de la H2.
+- El ESP32 se alimenta solo por su USB (desde el hub); su pin VIN queda sin conexión para no
+  realimentar el USB.
 - PlatformIO Core 6.2 (`~/.local/bin/pio`), KiCad 10 (`kicad-cli`), ngspice 42, Wokwi 4.1 (licencia en VS Code).
 
 ## Fases de hardware

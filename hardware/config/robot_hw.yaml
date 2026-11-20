@@ -32,7 +32,7 @@ pins:
   - {gpio: 39, func: ADC_CO2,    mode: adc, dev: TGS4161 vía seguidor MCP6004 (ADC1_CH3)}
   - {gpio: 34, func: ADC_RADAR,  mode: adc, dev: HB100 IF amplificada y filtrada (ADC1_CH6)}
   - {gpio: 4,  func: CO2_HEATER_EN, mode: out, dev: MOSFET AO3400 del calefactor TGS4161}
-  - {gpio: 2,  func: LED_STATUS, mode: out, dev: LED de la placa (estado micro-ROS)}
+  - {gpio: 2,  func: LED_STATUS, mode: out, onboard: true, dev: LED de la placa (estado micro-ROS)}
 # Libres de reserva: GPIO35 (ADC1, solo entrada), GPIO5, GPIO15 (strapping, solo si hace falta).
 
 # ---------------------------------------------------------------------------------------------
@@ -142,6 +142,19 @@ analog:
     r_gate: 100
     r_gate_pulldown: 100000
     v_gate: 3.3
+
+# ---------------------------------------------------------------------------------------------
+# Valores de la placa base (H3) que no están en "analog": desacoples, pull-ups, protección.
+# ---------------------------------------------------------------------------------------------
+board:
+  i2c_pullup: 4700
+  stby_pulldown: 10000
+  pfet_gate_r: 10000        # puerta del IRF4905 (protección contra inversión) a GND
+  led_r: 1000
+  l_aux: 1.0e-5             # filtro LC de 5V_AUX
+  c_bulk_vbat: 4.7e-4       # electrolítico en VBAT
+  c_bulk_5v: 1.0e-4         # electrolíticos en 5V_USB, 5V_AUX y VM del TB6612
+  c_decoupling: 1.0e-7
 
 # ---------------------------------------------------------------------------------------------
 # Geometría (la copia la sesión de simulación al xacro). Posiciones respecto a base_link.
