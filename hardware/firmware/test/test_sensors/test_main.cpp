@@ -94,7 +94,8 @@ void test_radar_rms_window_forgets() {
 }
 
 void test_radar_vref_matches_h2() {
-  TEST_ASSERT_FLOAT_WITHIN(1e-3f, 1.65f, cfg::RADAR_VREF);
+  // H7: VREF bajó a 1.30 V (100k/64.9k) para que el radar no pase de 2.45 V en el ADC
+  TEST_ASSERT_FLOAT_WITHIN(5e-3f, 1.30f, cfg::RADAR_VREF);
 }
 
 int main() {

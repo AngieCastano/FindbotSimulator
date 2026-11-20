@@ -4,8 +4,9 @@
 * - Ganancia: transconductancia + RC → ganancia a0 con un polo en gbw/a0 (producto GBW).
 * - Salida: limitada a 25 mV de cada riel, resistencia de salida rout.
 * Los valores se pasan desde la instancia (vienen de hardware/config/robot_hw.yaml).
-.subckt opamp_rr inp inn vdd vss out a0=31623 gbw=1e6 ib=1e-12 rin=1e13 vos=0 rout=50
-Vvos inpi inp dc {vos}
+.subckt opamp_rr inp inn vdd vss out a0=31623 gbw=1e6 ib=1e-12 rin=1e13 vos=0 rout=50 drift=0
+* offset con deriva térmica: vos + drift·(T − 25 °C)
+Bvos inpi inp V = {vos} + {drift}*(temper - 25)
 Rdiff inpi inn {rin}
 Ibp inp vss dc {ib}
 Ibn inn vss dc {ib}

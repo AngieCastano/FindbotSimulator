@@ -28,6 +28,8 @@ def render(cfg):
     """Devuelve el texto del encabezado."""
     geo, mot, bat, an, fw = cfg['geometry'], cfg['motors'], cfg['battery'], cfg['analog'], cfg['firmware']
     counts = int(mot['encoder_ppr_motor']) * int(mot['gear_ratio']) * 4
+    if float(fw['motor_v_limit']) > float(mot['v_rated']):
+        raise SystemExit('firmware.motor_v_limit no puede superar motors.v_rated')
     if counts != int(mot['counts_per_wheel_rev']):
         raise SystemExit(f'counts_per_wheel_rev={mot["counts_per_wheel_rev"]} no es ppr×reducción×4={counts}')
     div = bat['divider']
@@ -62,6 +64,7 @@ def render(cfg):
         f'constexpr uint32_t MOTOR_PWM_FREQ = {int(mot["pwm_frequency"])};',
         'constexpr uint8_t MOTOR_PWM_BITS = 10;',
         f'constexpr float MOTOR_DEADBAND = {f(fw["motor_deadband"])};',
+        f'constexpr float MOTOR_V_LIMIT = {f(fw["motor_v_limit"])};',
         f'constexpr bool ENCODER_USE_PCNT = {"true" if fw["encoder_backend"] == "pcnt" else "false"};',
         f'constexpr uint16_t ENCODER_GLITCH_FILTER = {int(fw["encoder_glitch_filter_ticks"])};',
         f'constexpr bool MOTOR_INVERT_LEFT = {str(bool(fw["motor_invert_left"])).lower()};',

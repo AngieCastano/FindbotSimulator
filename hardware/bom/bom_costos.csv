@@ -22,10 +22,11 @@ Placa base,Q2,MOSFET N SOT-23 (calefactor),AO3400A,1,0.1,0.1,400.0,MVP
 Placa base,"R1,R3-R7,R15,R27",Resistencia 10kΩ 1/4 W 1 %,10k,8,0.02,0.16,600.0,MVP
 Placa base,"R2,R16,R25",Resistencia 1kΩ 1/4 W 1 %,1k,3,0.02,0.06,200.0,MVP
 Placa base,R8-R11,Resistencia 15kΩ 1/4 W 1 %,15k,4,0.02,0.08,300.0,No montar
-Placa base,"R12,R13",Resistencia 4k7Ω 1/4 W 1 %,4k7,2,0.02,0.04,200.0,MVP
+Placa base,"R12,R13",Resistencia 2k2Ω 1/4 W 1 %,2k2,2,0.02,0.04,200.0,MVP
 Placa base,R14,Resistencia 20kΩ 1/4 W 1 %,20k,1,0.02,0.02,100.0,MVP
 Placa base,R17,Resistencia 100Ω 1/4 W 1 %,100,1,0.02,0.02,100.0,MVP
-Placa base,"R18-R21,R23",Resistencia 100kΩ 1/4 W 1 %,100k,5,0.02,0.1,400.0,MVP
+Placa base,"R18,R19,R21,R23",Resistencia 100kΩ 1/4 W 1 %,100k,4,0.02,0.08,300.0,MVP
+Placa base,R20,Resistencia 64k9Ω 1/4 W 1 %,64k9,1,0.02,0.02,100.0,MVP
 Placa base,"R22,R24",Resistencia 4M7Ω 1/4 W 1 %,4M7,2,0.02,0.04,200.0,MVP
 Placa base,R26,Resistencia 27kΩ 1/4 W 1 %,27k,1,0.02,0.02,100.0,MVP
 Placa base,SW1,Bornera 2 vías (cables al interruptor),Interruptor 5 A,1,0.4,0.4,1600.0,MVP

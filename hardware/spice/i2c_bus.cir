@@ -1,0 +1,46 @@
+* H7 R1/R3 — Acoplamiento: bus I2C (SDA) a 400 kHz entre el ESP32, el GY-521 y el MLX90640.
+* Salida de drenaje abierto; el nivel alto lo dan los pull-ups. NXP UM10204 (Fast-mode): tiempo de
+* subida 30 %→70 % ≤ 300 ns. Casos: (A) pull-up de la placa ∥ pull-up del GY-521, (B) solo la placa
+* (módulo sin pull-ups), (C) caso A con el MLX90640 y su cable (capacidad doble).
+.include results/params.inc
+.param tbit = {1/sim_models_i2c_f_scl}
+
+V33 v33 0 dc {analog_esp32_io_vdd}
+Vdrv ctl 0 pulse(0 1 {tbit/4} 5n 5n {tbit/2} {tbit})
+.model od sw (vt=0.5 vh=0 ron=50 roff=1e9)
+
+* (A) placa ∥ GY-521
+Sa sa 0 ctl 0 od
+Rpa1 sa v33 {board_i2c_pullup}
+Rpa2 sa v33 {sim_models_i2c_gy521_pullup}
+Ca sa 0 {sim_models_i2c_bus_c}
+* (B) solo la placa
+Sb sb 0 ctl 0 od
+Rpb sb v33 {board_i2c_pullup}
+Cb sb 0 {sim_models_i2c_bus_c}
+* (C) placa ∥ GY-521 con el doble de capacidad (MLX90640 + cable)
+Sc sc 0 ctl 0 od
+Rpc1 sc v33 {board_i2c_pullup}
+Rpc2 sc v33 {sim_models_i2c_gy521_pullup}
+Cc sc 0 {2*sim_models_i2c_bus_c}
+
+.control
+set hcopydevtype=svg
+set color0=white
+set color1=black
+tran 1n 10u
+foreach node sa sb sc
+  meas tran tr_$node trig v($node) val=0.99 rise=2 targ v($node) val=2.31 rise=2
+  meas tran vol_$node min v($node) from=2u to=10u
+end
+let tra_ns = tr_sa*1e9
+let trb_ns = tr_sb*1e9
+let trc_ns = tr_sc*1e9
+echo "RESULT tr_a_ns $&tra_ns"
+echo "RESULT tr_b_ns $&trb_ns"
+echo "RESULT tr_c_ns $&trc_ns"
+echo "RESULT vol_a $&vol_sa"
+echo "RESULT vol_c $&vol_sc"
+wrdata results/i2c_bus.dat v(sa) v(sb) v(sc)
+.endc
+.end

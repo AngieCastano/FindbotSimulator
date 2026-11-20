@@ -98,8 +98,15 @@ vcd = open(f'{out}/e2e.vcd', encoding='utf-8', errors='replace').read()
 ids = dict(re.findall(r'\$var wire 1 (\S+) (D\d) \$end', vcd))
 inv = {v: k for k, v in ids.items()}
 stby_id = inv.get('D6')
-checks['/cmd_vel habilita los motores (STBY = 1 en la traza)'] = bool(
-    stby_id and re.search(rf'^1{re.escape(stby_id)}$', vcd, re.M))
+# Se ignora el instante 0 (estado de encendido de Wokwi, antes de que el firmware fije STBY en bajo):
+# solo cuenta una subida a 1 DESPUÉS de que el firmware arrancó (corrección H7: falso positivo).
+t, rises = 0, []
+for line in vcd.splitlines():
+    if line.startswith('#'):
+        t = int(line[1:])
+    elif stby_id and line == f'1{stby_id}' and t > 0:
+        rises.append(t)
+checks['/cmd_vel habilita los motores (STBY sube a 1 después del arranque)'] = bool(rises)
 fails = 0
 for name, ok in checks.items():
     print(f"{'OK   ' if ok else 'FALLA'} {name}")

@@ -1,0 +1,101 @@
+* H7 R1/R3 — Potencia: medio TB6612FNG (canal A) en modo PWM + freno corto, motor TT 1:48 con carga.
+* Modelo del motor referido a la rueda (Adafruit 3777 a 6 V):
+*   R  = v_test / i_stall                      (rueda bloqueada)
+*   Ke = (v_test − i_noload·R) / ω_noload      (fuerza contraelectromotriz, V·s/rad)
+*   Kt = par_paro / i_stall                    (par efectivo en la rueda, con pérdidas de la caja)
+*   b  = Kt·i_noload / ω_noload                (fricción viscosa equivalente)
+*   T_carga = ½·m·g·Crr·r                      (rodadura de medio robot)
+* Casos: (1) arranque a duty máximo con batería llena, (2) rueda bloqueada, (3) crucero a 0.3 m/s.
+.include results/params.inc
+.param vbat_full = {battery_v_full}
+.param rarm = {sim_models_motor_v_test/sim_models_motor_i_stall}
+.param wnl = {sim_models_motor_rpm_noload*2*3.14159265/60}
+.param ke = {(sim_models_motor_v_test - sim_models_motor_i_noload*rarm)/wnl}
+.param kt = {sim_models_motor_stall_torque_kgcm*0.0980665/sim_models_motor_i_stall}
+.param bvis = {kt*sim_models_motor_i_noload/wnl}
+.param tload = {0.5*geometry_mass_total*9.80665*sim_models_motor_crr*geometry_wheels_radius}
+.param ron_half = {sim_models_tb6612_r_on/2}
+* duty del firmware (motor_limit.cpp): máximo = motor_v_limit/vbat; crucero = zona muerta + (máx − zm)·u
+.param dmax = {firmware_motor_v_limit/vbat_full}
+.param wcruise = {geometry_limits_max_linear_velocity/geometry_wheels_radius}
+.param ucruise = {wcruise/(motors_no_load_rpm_at_6v*2*3.14159265/60)}
+.param dcruise = {firmware_motor_deadband + (dmax - firmware_motor_deadband)*ucruise}
+.csparam dcruise = {dcruise}
+.csparam dmax = {dmax}
+
+Vbat bint 0 dc {vbat_full}
+Rint bint vm {sim_models_battery_r_internal}
+Cvm vm 0 {board_c_bulk_5v}
+
+* PWM a 20 kHz por comparación con una rampa (duty en el nodo "duty")
+Vduty duty 0 dc {dmax}
+Vramp ramp 0 pulse(0 1 0 {1/motors_pwm_frequency - 2n} 1n 1n {1/motors_pwm_frequency})
+Bpwm pwm 0 V = 1/(1 + exp(-(V(duty) - V(ramp))*500))
+Bpwmn pwmn 0 V = 1 - V(pwm)
+* Pierna A: alto con PWM=1, bajo con PWM=0 (freno corto en el tiempo apagado). Pierna B: bajo fijo (IN2=0).
+Shi vm ao1 pwm 0 swdrv
+Slo ao1 0 pwmn 0 swdrv
+Sbl ao2 0 one 0 swdrv
+Vone one 0 dc 1
+Dhi ao1 vm dbody
+Dlo 0 ao1 dbody
+.model swdrv sw (vt=0.5 vh=0 ron={ron_half} roff=1e7)
+.model dbody d (is=1e-9 rs=0.05)
+
+* Motor: inductancia, resistencia y fuerza contraelectromotriz Ke·ω; Vs mide la corriente
+Vs ao1 m0 0
+Larm m0 m1 {sim_models_motor_l_arm}
+Rarm m1 m2 {rarm}
+Bemf m2 ao2 V = {ke}*V(w)
+* Mecánica en el nodo w (1 V = 1 rad/s): J·dω/dt = Kt·i − b·ω − T_carga
+Gt 0 w cur = {kt}*I(Vs)
+Cj w 0 {sim_models_motor_j_eq}
+Rb w 0 {1/bvis}
+Bload w 0 I = {tload}*tanh(V(w)*50)
+Rlock w 0 1e12
+
+.control
+set hcopydevtype=svg
+option temp=27
+* (1) arranque a duty máximo
+tran 1u 0.4 0 1u uic
+meas tran i_peak max i(vs)
+meas tran i_run avg i(vs) from=0.35 to=0.4
+meas tran i_run_max max i(vs) from=0.39 to=0.4
+meas tran i_run_min min i(vs) from=0.39 to=0.4
+let ripple_ma = 1000*(i_run_max - i_run_min)
+meas tran w_run avg v(w) from=0.35 to=0.4
+let v_robot = w_run*0.0325
+let pd = i(vs)*i(vs)*0.5
+meas tran p_drv_run avg pd from=0.35 to=0.4
+let vmot = v(ao1) - v(ao2)
+meas tran vmot_avg avg vmot from=0.35 to=0.4
+echo "RESULT i_peak $&i_peak"
+echo "RESULT i_run $&i_run"
+echo "RESULT ripple_ma $&ripple_ma"
+echo "RESULT w_run $&w_run"
+echo "RESULT v_robot_max $&v_robot"
+echo "RESULT vmot_avg $&vmot_avg"
+echo "RESULT p_drv_run $&p_drv_run"
+wrdata results/motor_start.dat i(vs) v(w) vmot
+* (3) crucero a 0.3 m/s (duty del firmware sin corrección PID)
+alter Vduty dc = $&dcruise
+tran 1u 0.4 0 1u uic
+meas tran w_cruise avg v(w) from=0.35 to=0.4
+meas tran i_cruise avg i(vs) from=0.35 to=0.4
+let v_cruise = w_cruise*0.0325
+echo "RESULT v_cruise $&v_cruise"
+echo "RESULT i_cruise $&i_cruise"
+wrdata results/motor_cruise.dat i(vs) v(w)
+* (2) rueda bloqueada a duty máximo
+alter Vduty dc = $&dmax
+alter Rlock = 1e-6
+tran 1u 0.05 0 1u uic
+meas tran i_stall avg i(vs) from=0.04 to=0.05
+let pd2 = i(vs)*i(vs)*0.5
+meas tran p_drv_stall avg pd2 from=0.04 to=0.05
+echo "RESULT i_stall $&i_stall"
+echo "RESULT p_drv_stall $&p_drv_stall"
+wrdata results/motor_stall.dat i(vs)
+.endc
+.end

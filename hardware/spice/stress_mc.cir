@@ -1,0 +1,145 @@
+* H7 R3 — Monte Carlo: tolerancias de los componentes en el divisor de batería, el amplificador del
+* CO2 y el amplificador del radar. Cada corrida sortea cada R (σ = tol/3, ±1 % = 3σ) y cada C
+* (±10 % = 3σ) con una semilla fija (reproducible). El criterio exige que TODAS las corridas cumplan.
+.include results/params.inc
+.include models/opamp_rr.lib
+.csparam n_runs = {sim_models_stress_mc_runs}
+.csparam rsig = {sim_models_stress_r_tol_sigma}
+.csparam csig = {sim_models_stress_c_tol_sigma}
+.csparam r_bt = {battery_divider_r_top}
+.csparam r_bb = {battery_divider_r_bottom}
+.csparam r_cf = {analog_co2_gain_rf}
+.csparam r_cg = {analog_co2_gain_rg}
+.csparam r_rin = {analog_radar_rin}
+.csparam r_rf = {analog_radar_rf}
+.csparam c_cin = {analog_radar_cin}
+.csparam c_cf = {analog_radar_cf}
+.csparam r_vt = {analog_vref_r_top}
+.csparam r_vb = {analog_vref_r_bottom}
+
+V33 v33 0 dc {analog_esp32_io_vdd}
+* Divisor de batería con la batería llena
+Vb vb 0 dc {battery_v_full}
+Rbt vb an {battery_divider_r_top}
+Rbb an 0 {battery_divider_r_bottom}
+
+* CO2: dos copias (FEM 0.2 V y 0.5 V) con las MISMAS resistencias sorteadas → ganancia
+Velo elo 0 dc 0.2
+Xlo elo flo v33 0 olo opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+Rflo olo flo {analog_co2_gain_rf}
+Rglo flo 0 {analog_co2_gain_rg}
+Vehi ehi 0 dc 0.5
+Xhi ehi fhi v33 0 ohi opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+Rfhi ohi fhi {analog_co2_gain_rf}
+Rghi fhi 0 {analog_co2_gain_rg}
+
+* Radar: referencia + 2 etapas
+Rvt v33 vdiv {analog_vref_r_top}
+Rvb vdiv 0 {analog_vref_r_bottom}
+Xr vdiv vref v33 0 vref opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+Vif if 0 dc 0 ac 1
+Ci1 if n1 {analog_radar_cin}
+Ri1 n1 i1 {analog_radar_rin}
+X1 vref i1 v33 0 o1 opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+Rf1 o1 i1 {analog_radar_rf}
+Cf1 o1 i1 {analog_radar_cf}
+Ci2 o1 n2 {analog_radar_cin}
+Ri2 n2 i2 {analog_radar_rin}
+X2 vref i2 v33 0 o2 opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+Rf2 o2 i2 {analog_radar_rf}
+Cf2 o2 i2 {analog_radar_cf}
+* Filtro antialias hacia el ADC (igual que radar_amp.cir)
+Ro o2 adcr {analog_radar_out_r}
+Co adcr 0 {analog_radar_out_c}
+
+.control
+set rndseed = 42
+let n = n_runs
+let vd = vector(n)
+let gco2 = vector(n)
+let vq = vector(n)
+let gdb = vector(n)
+let fl = vector(n)
+let fh = vector(n)
+let i = 0
+dowhile i < n
+  * sorteo: valor = nominal·(1 + σ·N(0,1))
+  let x = r_bt*(1 + rsig*sgauss(0))
+  alter Rbt = $&x
+  let x = r_bb*(1 + rsig*sgauss(0))
+  alter Rbb = $&x
+  let x = r_cf*(1 + rsig*sgauss(0))
+  alter Rflo = $&x
+  alter Rfhi = $&x
+  let x = r_cg*(1 + rsig*sgauss(0))
+  alter Rglo = $&x
+  alter Rghi = $&x
+  let x = r_vt*(1 + rsig*sgauss(0))
+  alter Rvt = $&x
+  let x = r_vb*(1 + rsig*sgauss(0))
+  alter Rvb = $&x
+  let x = r_rin*(1 + rsig*sgauss(0))
+  alter Ri1 = $&x
+  let x = r_rin*(1 + rsig*sgauss(0))
+  alter Ri2 = $&x
+  let x = r_rf*(1 + rsig*sgauss(0))
+  alter Rf1 = $&x
+  let x = r_rf*(1 + rsig*sgauss(0))
+  alter Rf2 = $&x
+  let x = c_cin*(1 + csig*sgauss(0))
+  alter Ci1 = $&x
+  let x = c_cin*(1 + csig*sgauss(0))
+  alter Ci2 = $&x
+  let x = c_cf*(1 + csig*sgauss(0))
+  alter Cf1 = $&x
+  let x = c_cf*(1 + csig*sgauss(0))
+  alter Cf2 = $&x
+  op
+  let vd[i] = v(an)
+  let gco2[i] = (v(ohi) - v(olo))/0.3
+  let vq[i] = v(adcr)
+  ac dec 40 0.005 1k
+  meas ac gmax max vdb(adcr)
+  let g3 = gmax - 3
+  meas ac flow when vdb(adcr)=$&g3 rise=1
+  meas ac fhigh when vdb(adcr)=$&g3 fall=1
+  let gdb[i] = gmax
+  let fl[i] = flow
+  let fh[i] = fhigh
+  let i = i + 1
+end
+setplot const
+let vd_max = vecmax(vd)
+let g_min = vecmin(gco2)
+let g_max = vecmax(gco2)
+let vq_min = vecmin(vq)
+let vq_max = vecmax(vq)
+let gdb_min = vecmin(gdb)
+let gdb_max = vecmax(gdb)
+let fl_min = vecmin(fl)
+let fl_max = vecmax(fl)
+let fh_min = vecmin(fh)
+let fh_max = vecmax(fh)
+echo "RESULT mc_runs $&n"
+echo "RESULT mc_vadc_max $&vd_max"
+echo "RESULT mc_co2_gain_min $&g_min"
+echo "RESULT mc_co2_gain_max $&g_max"
+echo "RESULT mc_radar_vq_min $&vq_min"
+echo "RESULT mc_radar_vq_max $&vq_max"
+echo "RESULT mc_radar_gdb_min $&gdb_min"
+echo "RESULT mc_radar_gdb_max $&gdb_max"
+echo "RESULT mc_radar_flow_max $&fl_max"
+echo "RESULT mc_radar_fhigh_min $&fh_min"
+* vectores con un índice como escala para poder escribir las 300 filas
+setplot new
+let idx = vector(n_runs)
+setscale idx
+let mc_vd = const.vd
+let mc_g = const.gco2
+let mc_vq = const.vq
+let mc_gdb = const.gdb
+let mc_fl = const.fl
+let mc_fh = const.fh
+wrdata results/stress_mc.dat mc_vd mc_g mc_vq mc_gdb mc_fl mc_fh
+.endc
+.end

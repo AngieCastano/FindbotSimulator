@@ -2,7 +2,7 @@
 """Corre las simulaciones SPICE de la Fase H2 y verifica sus criterios de aceptación.
 
 1. Genera results/params.inc con los valores de hardware/config/robot_hw.yaml
-   (secciones "analog" y "battery"), para que ningún valor quede fijo en los netlists.
+   (secciones analog, battery, board y sim_models), para que ningún valor quede fijo en los netlists.
 2. Ejecuta ngspice en modo batch para cada netlist (.cir) y guarda el log en results/.
 3. Lee las líneas "RESULT <nombre> <valor>" y las compara con criteria.yaml.
 Uso: python3 hardware/spice/check_spice.py   (código de salida 1 si algún criterio falla)
@@ -41,6 +41,11 @@ def write_params(cfg):
     """Escribe results/params.inc con un .param por cada valor numérico."""
     params = flatten('analog', cfg['analog'], {})
     flatten('battery', cfg['battery'], params)
+    flatten('board', cfg['board'], params)
+    flatten('sim_models', cfg['sim_models'], params)
+    flatten('motors', cfg['motors'], params)
+    flatten('firmware', cfg['firmware'], params)
+    flatten('geometry', cfg['geometry'], params)
     lines = ['* Generado por check_spice.py desde config/robot_hw.yaml — no editar']
     lines += [f'.param {name}={value!r}' for name, value in sorted(params.items())]
     (RESULTS / 'params.inc').write_text('\n'.join(lines) + '\n', encoding='utf-8')

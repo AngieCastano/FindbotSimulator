@@ -154,8 +154,8 @@ void control_step(float dt) {
   const float u_right = want.right / cfg::WHEEL_MAX_RAD_S + pid_right.update(want.right, meas.right, dt);
   const float v_bat = battery.voltage();
   if (!motors.enabled()) motors.enable(true);
-  motors.set(core::duty_from_command(u_left, v_bat, cfg::MOTOR_V_RATED, cfg::MOTOR_DEADBAND),
-             core::duty_from_command(u_right, v_bat, cfg::MOTOR_V_RATED, cfg::MOTOR_DEADBAND));
+  motors.set(core::duty_from_command(u_left, v_bat, cfg::MOTOR_V_LIMIT, cfg::MOTOR_DEADBAND),
+             core::duty_from_command(u_right, v_bat, cfg::MOTOR_V_LIMIT, cfg::MOTOR_DEADBAND));
 }
 
 void slow_step() {

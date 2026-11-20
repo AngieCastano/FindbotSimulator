@@ -1,0 +1,6 @@
+OK         nominal        v=0.300 m/s  error=0.0 %  sobrepaso=1.5 %  establecimiento=0.58 s  (batería nominal, piso duro)
+OK         bateria_baja   v=0.300 m/s  error=0.0 %  sobrepaso=1.5 %  establecimiento=0.58 s  (batería casi en el umbral crítico)
+OK         carga_x3       v=0.299 m/s  error=0.2 %  sobrepaso=1.5 %  establecimiento=0.70 s  (terreno irregular: triple resistencia a la rodadura)
+OK         ruido_encoder  v=0.300 m/s  error=0.0 %  sobrepaso=4.7 %  establecimiento=0.56 s  (encoder con ±2 cuentas espurias por periodo)
+REFERENCIA sin_pid        v=0.314 m/s  error=4.8 %  sobrepaso=6.4 %  establecimiento=2.34 s  (solo prealimentación (referencia))
+criterios (con PID): error ≤ 3.0 %, sobrepaso ≤ 10.0 %, establecimiento (banda 5 %) ≤ 1.2 s; 0 fallas

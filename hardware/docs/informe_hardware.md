@@ -1,5 +1,9 @@
 # Hardware del robot findbot: diseño y verificación (fases H0–H7)
 
+> **Nota (H7):** varios valores de este documento fueron corregidos por la validación virtual
+> (pull-ups I2C 2,2 kΩ, referencia del radar 1,30 V, límite de 5,0 V en el motor, paro de 1,5 A).
+> La versión vigente y completa está en [`REPORTE_SIMULACION.md`](REPORTE_SIMULACION.md).
+
 **Proyecto:** robot autónomo de búsqueda de víctimas en escombros — Ingeniería Electrónica, UNAD.
 **Metodología:** CDIO (Concebir, Diseñar, Implementar, Operar).
 **Alcance:** circuito de la placa base, firmware del ESP32 y su integración con ROS 2. El

@@ -27,7 +27,7 @@ skip() { printf '%-4s %-45s OMITIDO (%s)\n' "$1" "$2" "$3"; NAMES+=("$1 $2"); RE
 
 echo "== Verificación del hardware de findbot =="
 run H1 "pines y geometría (check_pins)"            python3 scripts/check_pins.py
-run H2 "SPICE: 23 criterios (ngspice)"             spice/run_spice.sh
+run H2 "SPICE: circuitos, potencia y estrés"      spice/run_spice.sh
 run H3 "esquemático: ERC + netlist + PDF/BOM"      kicad/build.sh
 run H4 "config_gen.h al día con el YAML"           bash -c "cd firmware && python3 tools/gen_config.py --check"
 run H4 "pruebas nativas (Unity)"                   bash -c "cd firmware && '$PIO' test -e native"
@@ -45,6 +45,7 @@ else
   skip H5 "Wokwi: escenario automático" "falta WOKWI_CLI_TOKEN"
   skip H6 "punta a punta micro-ROS" "falta WOKWI_CLI_TOKEN"
 fi
+run H7 "emulación del lazo de control (firmware)" python3 firmware/tools/run_control_sim.py
 run H7 "coherencia con simulación y CLAUDE.md"     python3 scripts/check_consistency.py
 run H7 "lista de materiales con costos"            python3 bom/gen_bom.py
 

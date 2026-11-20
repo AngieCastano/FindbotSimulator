@@ -1,3 +1,4 @@
 # Artefactos de PlatformIO
 .pio/
 .vscode/
+results/control/sim_control

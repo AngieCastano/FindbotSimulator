@@ -22,14 +22,81 @@ co2_buffer:
   out_max:   [null, 1.75]
 
 radar_amp:
-  vq:       [1.60, 1.70]      # reposo de la salida en VREF
+  vq:       [1.25, 1.35]      # reposo de la salida en VREF (1.30 V desde H7)
   gain_db:  [63.0, 69.0]      # 2000 ± 3 dB
   flow:     [0.08, 0.15]      # Hz, corte inferior (−3 dB)
   fhigh:    [35.0, 70.0]      # Hz, corte superior (−3 dB)
-  tran_max: [null, 3.25]      # sin saturar con 0.5 mV pico de entrada
-  tran_min: [0.05, null]
+  tran_max: [null, 2.45]      # dentro del rango fiable del ADC a 11 dB (ESP32 datasheet p. 44)
+  tran_min: [0.15, null]
 
 heater_switch:
   v_heater: [4.8, 5.2]        # tensión en el calefactor (5 V ± 0.2 V)
   p_fet_mw: [null, 50.0]
   i_off_ua: [null, 1.0]       # fuga con el calefactor apagado
+
+# --- H7 R1/R3: alimentación (batería llena 84, nominal 74, crítica 62 = décimas de voltio) ---
+power_supply:
+  vout_avg_84: [4.9, 5.1]     # 5 V ± 2 % en régimen
+  vout_avg_74: [4.9, 5.1]
+  vout_avg_62: [4.9, 5.1]
+  ripple_mv_84: [null, 50.0]  # rizado pico a pico
+  ripple_mv_74: [null, 50.0]
+  ripple_mv_62: [null, 50.0]
+  vout_dip_84: [4.75, null]   # mínimo de VBUS USB 2.0 con motores arrancando + carga USB máxima
+  vout_dip_74: [4.75, null]
+  vout_dip_62: [4.75, null]
+  vbat_min_84: [5.5, null]    # margen del reductor (Vout + caída) durante el arranque de motores
+  vbat_min_74: [5.5, null]
+  vbat_min_62: [5.5, null]
+  vout_end_84: [4.9, 5.1]     # recuperación tras los eventos
+  vout_end_74: [4.9, 5.1]
+  vout_end_62: [4.9, 5.1]
+
+# --- H7 R1/R3: potencia (TB6612 + motor TT; límites del TB6612 marcados [VERIFICAR] en robot_hw.yaml) ---
+motor_drive:
+  i_peak: [null, 3.2]         # pico al arrancar ≤ pico del TB6612 por canal
+  i_stall: [null, 1.2]        # rueda bloqueada sostenida ≤ corriente media del TB6612
+  vmot_avg: [null, 5.1]       # tensión media en el motor ≤ motor_v_limit (5.0 V) + margen
+  v_robot_max: [0.30, null]   # con el duty máximo el robot supera su velocidad límite
+  ripple_ma: [null, 200.0]    # rizado de corriente a 20 kHz
+
+# --- H7 R1/R3: acoplamiento I2C (NXP UM10204, Fast-mode, tr 30–70 % ≤ 300 ns) ---
+i2c_bus:
+  tr_a_ns: [null, 300.0]      # placa ∥ GY-521
+  tr_b_ns: [null, 300.0]      # solo la placa
+  tr_c_ns: [null, 300.0]      # con el MLX90640 y su cable
+  vol_a: [null, 0.825]        # nivel bajo ≤ VIL del ESP32 (0.25·VDD)
+  vol_c: [null, 0.825]
+
+# --- H7 R3: Monte Carlo (300 corridas; deben cumplir TODAS: se evalúan los extremos) ---
+stress_mc:
+  mc_runs: [300, 300]
+  mc_vadc_max: [null, 2.45]          # divisor con batería llena dentro del rango del ADC
+  mc_co2_gain_min: [2.94, null]      # ganancia 3 ± 2 %
+  mc_co2_gain_max: [null, 3.06]
+  mc_radar_vq_min: [1.25, null]      # reposo del radar
+  mc_radar_vq_max: [null, 1.35]
+  mc_radar_gdb_min: [63.0, null]     # 2000 ± 3 dB
+  mc_radar_gdb_max: [null, 69.0]
+  mc_radar_flow_max: [null, 0.15]    # Hz
+  mc_radar_fhigh_min: [35.0, null]   # Hz
+
+# --- H7 R3: temperatura (t90 = −10 °C, t125 = 25 °C, t160 = 60 °C; nombre = T + 100) ---
+stress_temp:
+  vadc_t90: [null, 2.45]
+  vadc_t160: [null, 2.45]
+  vbat_err_mv_t90: [-50.0, 50.0]     # error de lectura de batería (umbral crítico 6.2 V)
+  vbat_err_mv_t160: [-50.0, 50.0]
+  co2_emf_err_mv_t90: [-5.0, 5.0]    # ≈ 0.1 década de CO2 con 50 mV/década
+  co2_emf_err_mv_t160: [-5.0, 5.0]
+  radar_vref_t90: [1.25, 1.35]
+  radar_vref_t160: [1.25, 1.35]
+  heater_v_t90: [4.8, 5.2]
+  heater_v_t160: [4.8, 5.2]
+
+# --- H7 R3: ruido ---
+stress_noise:
+  bat_ripple_mv: [null, 5.0]         # rizado del PWM de motores visto por el ADC de batería
+  radar_snr_db: [20.0, null]         # señal de prueba frente al ruido supuesto del HB100
+  radar_noisy_max: [null, 2.45]      # la señal ruidosa no sale del rango fiable del ADC
+  radar_noisy_min: [0.15, null]

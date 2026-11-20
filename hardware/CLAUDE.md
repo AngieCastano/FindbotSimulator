@@ -43,7 +43,7 @@ este archivo los explica. Si cambias uno, cambia el otro en el mismo commit y co
 | 13 | `MOT_STBY` | TB6612 STBY | pull-down 10 kΩ: motores apagados hasta que el firmware arranca |
 | 18 / 19 | `ENC_L_A` / `ENC_L_B` | encoder izquierdo | contador por hardware **PCNT** en cuadratura ×4 |
 | 16 / 17 | `ENC_R_A` / `ENC_R_B` | encoder derecho | PCNT; pull-up 10 kΩ a 3V3 |
-| 21 / 22 | `I2C_SDA` / `I2C_SCL` | MPU6050 (0x68), MLX90640 (0x33) | 400 kHz, pull-up 4,7 kΩ |
+| 21 / 22 | `I2C_SDA` / `I2C_SCL` | MPU6050 (0x68), MLX90640 (0x33) | 400 kHz, pull-up 2,2 kΩ (H7) |
 | 23 | `IMU_INT` | MPU6050 INT | dato listo |
 | 36 | `ADC_VBAT` | divisor de batería | ADC1, 11 dB |
 | 39 | `ADC_CO2` | seguidor del TGS4161 | ADC1 |
@@ -70,7 +70,7 @@ Valores en `robot_hw.yaml → analog`. MCP6004 (4 amplificadores): CO₂, radar 
   error de carga 1 mV (con Rs supuesta de 1 GΩ). El offset del amplificador (±4,5 mV) se elimina
   con la calibración de línea base en aire limpio. Calefactor 5 V/50 mA conmutado por AO3400 (GPIO4):
   4,998 V en el calefactor, 0,1 mW en el MOSFET. Precalentamiento ~2 h la primera vez.
-- **HB100**: 2 etapas inversoras iguales referidas a VREF 1,65 V (Rin 100 kΩ + Cin 22 µF,
+- **HB100**: 2 etapas inversoras iguales referidas a VREF 1,30 V (100k/64,9k, H7) (Rin 100 kΩ + Cin 22 µF,
   Rf 4,7 MΩ ∥ Cf 470 pF) → **66,8 dB**, banda de −3 dB **0,11–43 Hz**, RC 1 kΩ/1 µF hacia el ADC.
   Entrada máxima sin saturar ≈ 0,7 mV pico. Solo es útil con el robot quieto.
 - **Batería**: 2,30 V en el ADC en el peor caso (8,4 V, ±1 %), resolución 3 mV de batería por LSB,
@@ -130,6 +130,15 @@ y `/odom` va de `odom` a `base_footprint`, igual que en el xacro.
   zona muerta, ganancias del PID y pendiente del TGS4161.
 
 ## Verificación completa y cierre (H7)
+- **Correcciones al diseño encontradas en H7** (simulación de potencia y estrés):
+  1. `firmware.motor_v_limit = 5.0 V`: con 6 V la rueda bloqueada pedía 1,31 A (> 1,2 A del TB6612).
+  2. Pull-ups I2C de la placa 4,7 kΩ → 2,2 kΩ: sin los del GY-521 o con el MLX90640 la subida era 398 ns (> 300 ns).
+  3. VREF del radar 1,65 → 1,30 V: la salida llegaba a 2,72 V, fuera del rango fiable del ADC (≤ 2,45 V).
+  4. Corriente de paro del motor TT 1,2 → 1,5 A (dato de Adafruit 3777).
+- Nuevas simulaciones (spice/): `power_supply`, `motor_drive`, `i2c_bus`, `stress_mc` (300 corridas),
+  `stress_temp` (−10/25/60 °C), `stress_noise`; 72 criterios. Emulación del lazo con el código real:
+  `firmware/tools/run_control_sim.py`. Figuras: `docs/tools/make_figures.py` → `docs/figuras/`.
+- Reporte final: `docs/REPORTE_SIMULACION.md`. Evidencia fija de Wokwi: `docs/evidencia/`.
 - `bash -ic 'hardware/check_all.sh [--e2e]'`: corre todas las verificaciones de H1–H7 y resume
   (sin `WOKWI_CLI_TOKEN` las de Wokwi quedan OMITIDAS).
 - `scripts/check_consistency.py`: tablas de `hardware/CLAUDE.md` contra el YAML (error si

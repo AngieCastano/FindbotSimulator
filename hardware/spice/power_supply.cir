@@ -1,0 +1,66 @@
+* H7 R1 — Alimentación: batería 2S → fusible → IRF4905 (inversión) → regulador reductor 5V_USB.
+* Regulador conmutado de modo de voltaje a f_sw (modelo del MP1584: interruptor + diodo Schottky +
+* LC + lazo PI; el lazo es un modelo, no el compensador interno real del MP1584).
+* Eventos: t = 1.0 ms arrancan los 2 motores (corriente de paro en VBAT); t = 2.0 ms la carga USB
+* salta de i_idle a i_peak. Se repite con batería llena, nominal y crítica.
+.include results/params.inc
+.param tsw = {1/sim_models_buck_f_sw}
+
+Vbat bat_int 0 dc {battery_v_nominal}
+Rint bat_int vraw {sim_models_battery_r_internal}
+Rfuse vraw vf 0.01
+* IRF4905 (P): drenaje del lado de la batería, fuente hacia la carga, puerta a GND por 10k
+M1 vf g vbat vbat irf4905 w=1u l=1u
+Rg g 0 10k
+Cbulk vbat 0 {board_c_bulk_vbat}
+* Arranque simultáneo de los 2 motores (paro) que se amortigua a la corriente de marcha
+Imot vbat 0 pwl(0 0.3 1.0m 0.3 1.001m {2*sim_models_motor_i_stall} 1.6m {2*sim_models_motor_i_stall} 3.0m 0.5)
+
+* --- Regulador reductor 5V_USB ---
+Vramp ramp 0 pulse(0 1 0 {tsw-2n} 1n 1n {tsw})
+Gint 0 xi cur = {sim_models_buck_ki}*(5.0 - V(vout))
+Cint xi 0 1
+Rleak xi 0 1e9
+Bduty duty 0 V = max(0.02, min(0.95, {sim_models_buck_kp}*(5.0 - V(vout)) + V(xi)))
+Bgate gate 0 V = 1/(1 + exp(-(V(duty) - V(ramp))*400))
+S1 vbat sw gate 0 swbuck
+.model swbuck sw (vt=0.5 vh=0 ron={sim_models_buck_r_on} roff=1e6)
+D1 0 sw dsch
+.model dsch d (is=1e-5 rs=0.04 n=1.05 cjo=100p)
+L1 sw vout {sim_models_buck_l}
+Cout vout cesr {sim_models_buck_c_out}
+Resr cesr 0 0.005
+Cbig vout 0 {board_c_bulk_5v}
+* Carga USB: i_idle y escalón a i_peak en t = 2 ms
+Iusb vout 0 pwl(0 {sim_models_usb_load_i_idle} 2.0m {sim_models_usb_load_i_idle} 2.002m {sim_models_usb_load_i_peak})
+
+.model irf4905 pmos (level=1 vto=-3.0 kp=11.4 lambda=0.01)
+.ic v(vout)=5.0 v(xi)=0.7 v(vbat)={battery_v_nominal}
+
+.control
+set hcopydevtype=svg
+set color0=white
+set color1=black
+option temp=27
+foreach vb 8.4 7.4 6.2
+  alter Vbat dc = $vb
+  tran 20n 3.2m 0 20n uic
+  * estado estable antes de los eventos
+  meas tran vout_avg avg v(vout) from=0.7m to=0.95m
+  meas tran vout_max max v(vout) from=0.7m to=0.95m
+  meas tran vout_min min v(vout) from=0.7m to=0.95m
+  let ripple_mv = 1000*(vout_max - vout_min)
+  * peor caída de 5 V con los motores arrancando y la carga USB al máximo
+  meas tran vout_dip min v(vout) from=0.95m to=3.2m
+  meas tran vbat_min min v(vbat) from=0.95m to=3.2m
+  meas tran vout_end avg v(vout) from=2.9m to=3.2m
+  let tag = $vb*10
+  echo "RESULT vout_avg_$&tag $&vout_avg"
+  echo "RESULT ripple_mv_$&tag $&ripple_mv"
+  echo "RESULT vout_dip_$&tag $&vout_dip"
+  echo "RESULT vbat_min_$&tag $&vbat_min"
+  echo "RESULT vout_end_$&tag $&vout_end"
+  wrdata results/power_supply_{$&tag}.dat v(vout) v(vbat) i(L1)
+end
+.endc
+.end

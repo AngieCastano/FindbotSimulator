@@ -1,0 +1,64 @@
+* H7 R3 — Ruido. (a) Rizado del PWM de motores (20 kHz) sobre VBAT: cuánto llega al ADC de batería.
+* (b) Ruido blanco en la salida IF del HB100 + señal de respiración (0.3 Hz) y movimiento (10 Hz):
+*     relación señal/ruido a la salida y que la señal ruidosa no salga del rango fiable del ADC.
+.include results/params.inc
+.include models/opamp_rr.lib
+
+V33 v33 0 dc {analog_esp32_io_vdd}
+* (a) VBAT nominal + onda cuadrada de 20 kHz
+Vb vb0 0 dc {battery_v_nominal}
+Vrip vb vb0 pulse({-sim_models_stress_vbat_ripple_vpp/2} {sim_models_stress_vbat_ripple_vpp/2} 0 1u 1u {0.5/motors_pwm_frequency} {1/motors_pwm_frequency})
+Rbt vb an {battery_divider_r_top}
+Rbb an 0 {battery_divider_r_bottom}
+Cbf an 0 {battery_divider_c_filter}
+
+* (b) radar: dos copias, solo ruido (n) y señal + ruido (s)
+Rvt v33 vdiv {analog_vref_r_top}
+Rvb vdiv 0 {analog_vref_r_bottom}
+Cv vdiv 0 {analog_vref_c}
+Xr vdiv vref v33 0 vref opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+.subckt radar2 in vref v33 adc
+Ci1 in n1 {analog_radar_cin}
+Ri1 n1 i1 {analog_radar_rin}
+X1 vref i1 v33 0 o1 opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+Rf1 o1 i1 {analog_radar_rf}
+Cf1 o1 i1 {analog_radar_cf}
+Ci2 o1 n2 {analog_radar_cin}
+Ri2 n2 i2 {analog_radar_rin}
+X2 vref i2 v33 0 o2 opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+Rf2 o2 i2 {analog_radar_rf}
+Cf2 o2 i2 {analog_radar_cf}
+Ro o2 adc {analog_radar_out_r}
+Co adc 0 {analog_radar_out_c}
+.ends
+Vnn inn 0 dc 0 trnoise({sim_models_stress_radar_noise_vrms} 0.5m 0 0)
+Xn inn vref v33 adcn radar2
+Vsn sn1 0 dc 0 trnoise({sim_models_stress_radar_noise_vrms} 0.5m 0 0)
+Vs1 sn2 sn1 sin(0 {sim_models_stress_radar_signal_vpk} 0.3)
+Vs2 ins sn2 sin(0 {sim_models_stress_radar_signal_vpk} 10)
+Xs ins vref v33 adcs radar2
+
+.control
+set rndseed = 7
+tran 0.5m 12
+* (a) rizado en el ADC de batería (régimen permanente)
+meas tran vadc_max max v(an) from=6 to=12
+meas tran vadc_min min v(an) from=6 to=12
+let bat_ripple_mv = 1000*(vadc_max - vadc_min)
+* (b) ruido del radar: RMS de la salida sin señal (sin la componente continua)
+meas tran vn_avg avg v(adcn) from=4 to=12
+let vac = v(adcn) - vn_avg
+meas tran noise_rms rms vac from=4 to=12
+meas tran sig_max max v(adcs) from=4 to=12
+meas tran sig_min min v(adcs) from=4 to=12
+let sig_pp = sig_max - sig_min
+let snr_db = 20*log10((sig_pp/2/sqrt(2))/noise_rms)
+let noise_mv = noise_rms*1000
+echo "RESULT bat_ripple_mv $&bat_ripple_mv"
+echo "RESULT radar_noise_mv_rms $&noise_mv"
+echo "RESULT radar_snr_db $&snr_db"
+echo "RESULT radar_noisy_max $&sig_max"
+echo "RESULT radar_noisy_min $&sig_min"
+wrdata results/stress_noise.dat v(adcn) v(adcs)
+.endc
+.end

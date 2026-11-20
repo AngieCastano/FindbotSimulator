@@ -1,0 +1,48 @@
+* H7 R3 — Temperatura: −10, 25 y 60 °C. Peor caso: en cada par de resistencias que forma una razón
+* (divisor de batería, ganancia del CO2, referencia del radar) los coeficientes térmicos van en
+* sentidos opuestos (+tc1 / −tc1). El MCP6004 incluye su deriva de offset y el AO3400 su modelo
+* nivel 1 dependiente de la temperatura.
+.include results/params.inc
+.include models/opamp_rr.lib
+.include models/ao3400.lib
+.param tc = {sim_models_stress_r_tc1}
+.csparam ratio = {battery_divider_r_bottom/(battery_divider_r_top + battery_divider_r_bottom)}
+.csparam co2_gain = {1 + analog_co2_gain_rf/analog_co2_gain_rg}
+
+V33 v33 0 dc {analog_esp32_io_vdd}
+* Divisor de batería a 8.4 V
+Vb vb 0 dc {battery_v_full}
+Rbt vb an {battery_divider_r_top} tc1={tc}
+Rbb an 0 {battery_divider_r_bottom} tc1={-tc}
+* CO2 con FEM 0.35 V (offset nulo a 25 °C + deriva)
+Ve e 0 dc 0.35
+Xc e fb v33 0 oc opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0 drift={analog_opamp_vos_drift}
+Rf oc fb {analog_co2_gain_rf} tc1={tc}
+Rg fb 0 {analog_co2_gain_rg} tc1={-tc}
+* Referencia del radar
+Rvt v33 vdiv {analog_vref_r_top} tc1={tc}
+Rvb vdiv 0 {analog_vref_r_bottom} tc1={-tc}
+Xr vdiv vref v33 0 vref opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0 drift={analog_opamp_vos_drift}
+* Calefactor del TGS4161
+V5 v5 0 dc {analog_heater_v_supply}
+Rh v5 d {analog_heater_r_heater}
+M1 d g 0 0 ao3400 w=1u l=1u
+Vg g 0 dc {analog_heater_v_gate}
+
+.control
+foreach t -10 25 60
+  option temp=$t
+  op
+  let vbat_err_mv = 1000*(v(an)/ratio - 8.4)
+  let co2_emf_err_mv = 1000*(v(oc)/co2_gain - 0.35)
+  let vq = v(vref)
+  let vh = v(v5) - v(d)
+  let tag = $t + 100
+  echo "RESULT vadc_t{$&tag} $&v(an)"
+  echo "RESULT vbat_err_mv_t{$&tag} $&vbat_err_mv"
+  echo "RESULT co2_emf_err_mv_t{$&tag} $&co2_emf_err_mv"
+  echo "RESULT radar_vref_t{$&tag} $&vq"
+  echo "RESULT heater_v_t{$&tag} $&vh"
+end
+.endc
+.end

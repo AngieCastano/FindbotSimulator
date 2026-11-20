@@ -75,7 +75,7 @@ motors:
   model: TT 1:48 con encoder Hall de cuadratura
   v_rated: 6.0            # el firmware limita el duty a v_rated / Vbat
   no_load_rpm_at_6v: 200
-  stall_current_a: 1.2
+  stall_current_a: 1.5    # Adafruit 3777: 1.5 A con la rueda bloqueada a 6 V (H1 suponía 1.2 A; corregido en H7)
   encoder_ppr_motor: 11   # pulsos por vuelta del motor y canal — VERIFICAR con el proveedor
   gear_ratio: 48
   counts_per_wheel_rev: 2112   # 11 × 48 × 4 (cuadratura x4 con PCNT)
@@ -105,10 +105,11 @@ analog:
     ib: 1.0e-12
     rin: 1.0e13
     vos_max: 4.5e-3
+    vos_drift: 2.0e-6       # V/°C típico (Microchip DS20001733L)
     rout: 50
-  vref:                   # 1.65 V para el radar (divisor + 4.º amplificador del MCP6004 como seguidor)
+  vref:                   # 1.30 V para el radar (divisor + 4.º amplificador del MCP6004 como seguidor)
     r_top: 100000
-    r_bottom: 100000
+    r_bottom: 64900       # H7: con 1.65 V la salida llegaba a 2.72 V, fuera del rango fiable del ADC (≤ 2.45 V, ESP32 datasheet p. 44)
     c: 1.0e-5
   encoder:
     pullup: 10000         # a 3V3, caso A: salida Hall de colector abierto
@@ -135,7 +136,7 @@ analog:
     out_r: 1000
     out_c: 1.0e-6
     sample_rate: 200
-    adc_attenuation_db: 11   # VREF 1.65 V ± 1.1 V; sobre 2.45 V el ADC pierde linealidad
+    adc_attenuation_db: 11   # VREF 1.30 V ± 1.07 V → 0.23–2.37 V, dentro de 0.15–2.45 V (ESP32 datasheet p. 44)
     test_amplitude: 2.5e-4   # V pico por tono en la prueba transitoria (0.3 Hz + 10 Hz)
   heater:                 # calefactor TGS4161 conmutado por AO3400 en el lado bajo
     v_supply: 5.0
@@ -145,10 +146,54 @@ analog:
     v_gate: 3.3
 
 # ---------------------------------------------------------------------------------------------
+# Modelos para la simulación de potencia y estrés (H7, hardware/spice/). Lo marcado "supuesto" no
+# viene de una hoja de datos: se mide en el robot real y se actualiza aquí.
+# ---------------------------------------------------------------------------------------------
+sim_models:
+  battery:
+    r_internal: 0.10        # Ω por el paquete 2S + BMS + cables (supuesto)
+  buck:                     # MP1584 como regulador conmutado de modo de voltaje (modelo promedio de control)
+    f_sw: 500000            # Hz (supuesto; el módulo usa un valor fijo por resistencia)
+    l: 4.7e-6               # H (supuesto)
+    c_out: 4.4e-5           # F: cerámicos del módulo (supuesto)
+    r_on: 0.15              # Ω del interruptor interno (supuesto)
+    kp: 0.05                # lazo de control (modelo)
+    ki: 4000
+  usb_load:                 # consumo del hub USB en 5V_USB
+    i_idle: 0.6             # A (≈ 3 W: LiDAR + D435 + ReSpeaker + ESP32 en reposo)
+    i_peak: 2.1             # A (≈ 10.5 W, presupuesto de la H1)
+  motor:                    # motor TT 1:48 (Adafruit 3777: 6 V, 160 mA y 250 rpm sin carga, 1.5 A de paro)
+    v_test: 6.0
+    i_noload: 0.16
+    rpm_noload: 250         # rpm de la rueda a 6 V
+    i_stall: 1.5
+    stall_torque_kgcm: 0.8  # Adafruit 3777 a 6 V (par en la rueda, con pérdidas de la caja)
+    crr: 0.03               # coeficiente de rodadura sobre piso duro (supuesto)
+    l_arm: 1.0e-3           # H (supuesto)
+    j_eq: 2.0e-5            # kg·m² referidos a la rueda, con medio robot (supuesto)
+  tb6612:
+    r_on: 0.5               # Ω (alto + bajo, típico; [VERIFICAR] con la hoja de datos de Toshiba)
+    i_peak_max: 3.2         # A por canal ([VERIFICAR])
+    i_avg_max: 1.2          # A por canal ([VERIFICAR])
+  i2c:
+    gy521_pullup: 4700      # Ω en el módulo GY-521 (supuesto; medir)
+    bus_c: 1.0e-10          # F: pistas + 2 módulos + cable (supuesto)
+    f_scl: 400000
+  stress:
+    mc_runs: 300
+    r_tol_sigma: 0.003333   # ±1 % = 3σ
+    c_tol_sigma: 0.03333    # ±10 % = 3σ
+    temps_c: [-10, 25, 60]
+    r_tc1: 1.0e-4           # 1/°C, resistencias de película metálica (supuesto)
+    vbat_ripple_vpp: 0.5    # V: rizado del PWM de motores sobre VBAT (supuesto, ≈ 2·i_paro·r_interna con margen)
+    radar_noise_vrms: 1.0e-5   # V rms de ruido blanco en la salida IF del HB100 (supuesto)
+    radar_signal_vpk: 2.5e-4   # V pico de la señal de respiración/movimiento de prueba (como en H2)
+
+# ---------------------------------------------------------------------------------------------
 # Valores de la placa base (H3) que no están en "analog": desacoples, pull-ups, protección.
 # ---------------------------------------------------------------------------------------------
 board:
-  i2c_pullup: 4700
+  i2c_pullup: 2200          # H7: con 4.7k la subida del bus era 398 ns (> 300 ns, NXP UM10204) sin los pull-ups del GY-521 o con el MLX90640
   stby_pulldown: 10000
   pfet_gate_r: 10000        # puerta del IRF4905 (protección contra inversión) a GND
   led_r: 1000
@@ -183,6 +228,7 @@ firmware:
     i_limit: 0.3
     out_limit: 1.0
   motor_deadband: 0.12    # duty mínimo que vence la fricción del TT (medir en el robot)
+  motor_v_limit: 5.0      # V efectivos máximos en el motor (H7: con 6 V la rueda bloqueada pide 1.31 A > 1.2 A del TB6612)
   battery_filter_alpha: 0.2
   battery_hysteresis_v: 0.1
   imu:
