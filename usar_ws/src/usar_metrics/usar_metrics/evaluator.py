@@ -45,6 +45,9 @@ PARAMS = {
     'map_topic': '/map',
     'odom_topic': '/odom',
     'detections_topic': '/victims/detections',
+    # Detecciones de cada detector por separado (/victims/detections/<modalidad>): métricas por
+    # modalidad sensorial. Solo se informan las modalidades que publicaron algo.
+    'modalities': ['color_shape', 'human_shape', 'thermal'],
     'status_topic': '/exploration/status',
     'image_dpi': 150,
 }
@@ -83,6 +86,7 @@ class Evaluator(Node):
 
         self.map_msg: Optional[OccupancyGrid] = None
         self.estimates: List = []
+        self.modality_estimates: Dict[str, List] = {}
         self.status = ''
         self.path = PathIntegrator(self.p['odom_min_step'])
         self.trajectory: List = []
@@ -101,6 +105,11 @@ class Evaluator(Node):
                                  lambda m: setattr(self, 'map_msg', m), latched)
         self.create_subscription(Odometry, self.p['odom_topic'], self._on_odom, 50)
         self.create_subscription(PoseArray, self.p['detections_topic'], self._on_detections, 10)
+        for name in self.p['modalities']:
+            self.create_subscription(
+                PoseArray, f"{self.p['detections_topic']}/{name}",
+                lambda msg, name=name: self.modality_estimates.__setitem__(
+                    name, [(p.position.x, p.position.y) for p in msg.poses]), 10)
         self.create_subscription(String, self.p['status_topic'], self._on_status, latched)
         self.create_timer(float(self.p['sample_period']), self._sample)
         self.get_logger().info(
@@ -161,8 +170,9 @@ class Evaluator(Node):
                           self.explorable, self.spawn, int(self.p['free_threshold']))
         return pct
 
-    def _victims(self):
-        world = map_to_world(np.asarray(self.estimates, dtype=float).reshape(-1, 2), self.spawn)
+    def _victims(self, estimates=None):
+        estimates = self.estimates if estimates is None else estimates
+        world = map_to_world(np.asarray(estimates, dtype=float).reshape(-1, 2), self.spawn)
         return associate_victims([tuple(p) for p in world], self.gt['victims'],
                                  float(self.p['association_threshold']))
 
@@ -229,6 +239,9 @@ class Evaluator(Node):
             'victim_details': report.victim_rows(victims),
             'false_positive_positions': [[round(x, 4), round(y, 4)]
                                          for x, y in victims.false_positives],
+            # Lo que habría encontrado cada detector por sí solo (sin la fusión).
+            'by_modality': {name: self._victims(est).summary()
+                            for name, est in sorted(self.modality_estimates.items())},
             'world_params': self.gt.get('params', {}),
             'evaluator_params': {k: self.p[k] for k in REPORTED_PARAMS},
             'files': {},
@@ -267,6 +280,9 @@ class Evaluator(Node):
               f"recorrido {summary['distance_m']:.1f} m, víctimas {vs['detected']}/"
               f"{vs['n_victims']}, falsos positivos {vs['false_positives']}, error medio "
               f"{'-' if err is None else f'{err:.2f} m'}", flush=True)
+        for name, mod in summary['by_modality'].items():
+            print(f"[evaluator]   {name}: víctimas {mod['detected']}/{mod['n_victims']}, "
+                  f"falsos positivos {mod['false_positives']}", flush=True)
         print(f"[evaluator] Resultados: {files['summary_json']}", flush=True)
         return summary
 

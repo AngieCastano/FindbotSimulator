@@ -182,6 +182,17 @@ Visualization Manager:
       Normalize Range: true
       Value: true
     - Class: rviz_default_plugins/Image
+      Name: Termica (deteccion)
+      Enabled: true
+      Topic:
+        Value: /thermal/debug_image
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Normalize Range: true
+      Value: true
+    - Class: rviz_default_plugins/Image
       Name: Camara profundidad
       Enabled: false
       Topic:

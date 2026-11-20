@@ -54,6 +54,10 @@ def render_top_view(gt: dict, out_path: str, dpi: int = 150) -> None:
         else:
             patch.set(facecolor=LOW_DEBRIS_RGB, edgecolor='#3a3836', lw=0.8, hatch='///',
                       zorder=2)
+        if 'temperature_c' in obs:   # escombro tibio: borde rojo y su temperatura
+            patch.set(edgecolor='#d62728', lw=2.0)
+            ax.annotate(f"{obs['temperature_c']:.0f} °C", (obs['x'], obs['y']), fontsize=7,
+                        ha='center', va='center', color='#d62728', fontweight='bold', zorder=5)
         ax.add_patch(patch)
 
     victim_rgb = VICTIM_MATERIALS[params.get('victim_appearance', 'orange')][0]

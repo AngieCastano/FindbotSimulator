@@ -1,0 +1,28 @@
+# Se añade encima de detector.yaml con use_thermal:=true (exploration.launch.py): activa el
+# detector de calor corporal con la cámara térmica MLX90640 (fase 2). Ver docs/fase9_termica.md.
+victim_detector:
+  ros__parameters:
+    detectors: ["color_shape", "human_shape", "thermal"]
+
+    thermal_topic: /thermal/image   # sensor_msgs/Image 32FC1, °C (ESP32 o usar_sim_sensors)
+    thermal_horizontal_fov: 0.96    # rad (55°, MLX90640 BAA): da los intrínsecos de la cámara
+    thermal_processing_rate: 4.0    # Hz (la cámara publica a 4)
+    thermal_min_range: 0.15         # m: los rayos empiezan a esta distancia (fuera del robot)
+    thermal_evidence_height: 0.1    # m: altura del punto de evidencia (solo visualización)
+    # Triangulación (la cámara térmica no mide distancia): cada rayo marca las celdas que cruza
+    # en el /map, hasta el primer obstáculo + thermal_ray_beyond, la primera celda desconocida o
+    # su distancia máxima. Solo es evidencia una celda cruzada desde thermal_min_bearings
+    # sectores de dirección distintos (de 360°/thermal_bearing_bins cada uno).
+    thermal_ray_beyond: 0.4         # m: fondo del objeto visto (una víctima mide 0.6 de ancho)
+    thermal_bearing_cell: 0.15      # m: celda de la rejilla de intersección
+    thermal_bearing_bins: 12        # sectores de 30°
+    thermal_min_bearings: 3         # direcciones distintas para aceptar una celda
+    map_occupied_threshold: 65      # celda ocupada del /map (igual que nav2_map_server)
+
+    thermal:
+      min_temperature: 28.0         # °C: una persona vestida se ve a 30–36 °C
+      max_temperature: 40.0         # °C: más caliente es una fuente artificial
+      min_contrast: 5.0             # °C sobre el fondo (mediana de la imagen)
+      min_pixels: 2                 # manchas más pequeñas son ruido
+      max_range: 6.0                # m: más lejos, una víctima ocupa menos de un píxel de alto
+      range_margin: 0.5             # m sobre la cota de distancia por el punto de apoyo

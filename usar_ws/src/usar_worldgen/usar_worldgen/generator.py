@@ -59,6 +59,8 @@ class Obstacle:
     height: float
     color: Tuple[float, float, float]
     category: str = 'rubble'  # 'rubble' o el tipo de escombro bajo (plank, slab, block)
+    #: Temperatura propia en °C (escombro tibio); None = temperatura ambiente.
+    temperature_c: Optional[float] = None
 
 
 @dataclass
@@ -169,6 +171,21 @@ def _place_low_debris(params: WorldParams, sub_seed: int, debris_try: int,
     return debris, ''
 
 
+def _assign_warm_debris(params: WorldParams, sub_seed: int, obstacles: List[Obstacle]) -> None:
+    """
+    Elige n_warm_debris escombros y les da una temperatura propia (flujo aleatorio aparte).
+
+    Con n_warm_debris = 0 no se consume ningún número aleatorio: el mundo no cambia.
+    """
+    if not params.n_warm_debris:
+        return
+    rng = np.random.Generator(np.random.PCG64(np.random.SeedSequence([sub_seed, 2])))
+    chosen = rng.choice(len(obstacles), size=params.n_warm_debris, replace=False)
+    lo, hi = params.warm_debris_temperature_range
+    for i in sorted(int(c) for c in chosen):
+        obstacles[i].temperature_c = _r(rng.uniform(lo, hi))
+
+
 def _check_reachability(params: WorldParams, shapes: List[Shape], victims: List[Victim]
                         ) -> Tuple[GridSpec, np.ndarray, str]:
     """Área explorable y alcanzabilidad de las víctimas; motivo del fallo o ''."""
@@ -237,6 +254,7 @@ def _try_generate(params: WorldParams, attempt: int,
     else:
         return None, reason
 
+    _assign_warm_debris(params, sub_seed, obstacles)
     world = GeneratedWorld(params, attempt, sub_seed, obstacles, victims, spec, explorable)
     return world, ''
 

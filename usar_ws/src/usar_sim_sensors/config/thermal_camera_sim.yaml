@@ -1,0 +1,13 @@
+# Modelo del MLX90640 sobre la imagen ideal de Gazebo (Capa 2, solo simulación).
+thermal_camera_sim:
+  ros__parameters:
+    input_topic: /sim/thermal/image_raw
+    output_topic: /thermal/image   # 32FC1 en °C: mismo formato que el ESP32 con el sensor real
+    resolution: 0.01      # K por unidad de la imagen mono16 de Gazebo (valor por defecto de L16)
+    width: 32             # = robot.yaml → thermal
+    height: 24
+    netd: 0.2             # K: ruido temporal por imagen (MLX90640 a 4 Hz, modo ajedrez)
+    fixed_pattern: 0.3    # K: desvío fijo por píxel (no uniformidad tras la calibración)
+    min_temp: -40.0       # °C: rango de medida del sensor
+    max_temp: 300.0
+    seed: 0               # semilla del ruido (reproducible)

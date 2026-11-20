@@ -50,3 +50,17 @@ camera:                 # cámara RGB-D frontal, en la cara delantera del chasis
   near: 0.05            # recorte cercano: ve obstáculos bajos casi pegados al frontal
   far: 10.0
   noise_stddev: 0.007
+
+thermal:                # cámara térmica MLX90640 (versión BAA, 55° × 35°); fase 2: use_thermal:=true
+  # Posición relativa a la cámara RGB-D como en el robot físico (hardware/CLAUDE.md, Geometría):
+  # 6 cm a la derecha y 3 mm más abajo. Pendiente: alinear toda la geometría con el hardware.
+  x: 0.155
+  y: -0.06
+  z: 0.037              # sobre base_link → 0.117 m del suelo
+  pitch: 0.0
+  update_rate: 4        # Hz (el MLX90640 admite 0.5–64 Hz; a más frecuencia, más ruido)
+  width: 32
+  height: 24
+  horizontal_fov: 0.96  # 55°; Gazebo usa píxeles cuadrados: el vertical queda en ≈ 42° (real 35°)
+  near: 0.1
+  far: 20.0

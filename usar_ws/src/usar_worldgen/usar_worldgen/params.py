@@ -47,6 +47,16 @@ class WorldParams:
     # acostada. Se generan con un flujo aleatorio aparte: con 0 el mundo no cambia.
     n_low_debris: int = 0
     low_debris_height_range: Tuple[float, float] = (0.08, 0.28)
+    # Temperaturas (Fase 9, cámara térmica). Ambiente: todo lo que no tiene temperatura propia
+    # (suelo, muros, escombros). Víctimas: temperatura de la superficie de una persona vestida
+    # (≈ 30–34 °C; la temperatura interna de 37 °C no se ve desde fuera).
+    ambient_temperature_c: float = 20.0
+    victim_temperature_c: float = 34.0
+    # Escombros "tibios" (calentados por el sol, tuberías): fuentes de falsos positivos térmicos.
+    # Se eligen entre los escombros ya colocados con un flujo aleatorio propio (no cambian la
+    # disposición del escenario).
+    n_warm_debris: int = 0
+    warm_debris_temperature_range: Tuple[float, float] = (28.0, 45.0)
     wall_height: float = 1.0
     wall_thickness: float = 0.2
     # Reintentos de generación completa (cada uno con una sub-semilla derivada).
@@ -69,8 +79,16 @@ class WorldParams:
             raise ValueError('obstacle_height_range debe cumplir 0 < min <= max')
         if not 0.0 <= self.box_ratio <= 1.0:
             raise ValueError('box_ratio debe estar en [0, 1]')
-        if self.n_obstacles < 0 or self.n_victims < 0 or self.n_low_debris < 0:
-            raise ValueError('n_obstacles, n_victims y n_low_debris no pueden ser negativos')
+        if min(self.n_obstacles, self.n_victims, self.n_low_debris, self.n_warm_debris) < 0:
+            raise ValueError('n_obstacles, n_victims, n_low_debris y n_warm_debris no pueden ser '
+                             'negativos')
+        if self.n_warm_debris > self.n_obstacles + self.n_low_debris:
+            raise ValueError('n_warm_debris no puede superar el número de escombros')
+        lo, hi = self.warm_debris_temperature_range
+        if not lo <= hi:
+            raise ValueError('warm_debris_temperature_range debe cumplir min <= max')
+        if not -40.0 <= self.ambient_temperature_c <= 60.0:
+            raise ValueError('ambient_temperature_c debe estar entre -40 y 60 °C')
         if self.victim_appearance not in VICTIM_APPEARANCES:
             raise ValueError(f'victim_appearance debe ser uno de {VICTIM_APPEARANCES}')
         lo, hi = self.low_debris_height_range
@@ -127,14 +145,16 @@ class WorldParams:
         self.obstacle_size_range = tuple(float(v) for v in self.obstacle_size_range)
         self.obstacle_height_range = tuple(float(v) for v in self.obstacle_height_range)
         self.low_debris_height_range = tuple(float(v) for v in self.low_debris_height_range)
+        self.warm_debris_temperature_range = tuple(
+            float(v) for v in self.warm_debris_temperature_range)
         self.victim_appearance = str(self.victim_appearance)
         self.robot_spawn = tuple(float(v) for v in self.robot_spawn)
-        for name in ('n_obstacles', 'n_victims', 'n_low_debris', 'max_attempts',
+        for name in ('n_obstacles', 'n_victims', 'n_low_debris', 'n_warm_debris', 'max_attempts',
                      'max_placement_tries'):
             setattr(self, name, int(getattr(self, name)))
         for name in ('box_ratio', 'min_gap', 'spawn_clearance', 'robot_radius',
                      'grid_resolution', 'victim_reach_distance', 'wall_height',
-                     'wall_thickness'):
+                     'wall_thickness', 'ambient_temperature_c', 'victim_temperature_c'):
             setattr(self, name, float(getattr(self, name)))
 
 

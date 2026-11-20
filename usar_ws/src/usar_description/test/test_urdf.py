@@ -83,3 +83,44 @@ def test_converts_to_sdf(urdf_xml, tmp_path):
     model = ET.fromstring(result.stdout).find('model')
     sensors = {s.get('name') for s in model.iter('sensor')}
     assert {'lidar', 'rgbd_camera'} <= sensors
+
+
+# ---------------------------------------------------------------------- cámara térmica (fase 2)
+@pytest.fixture(scope='module')
+def thermal_xml():
+    doc = xacro.process_file(XACRO_FILE, mappings={'robot_params': PARAMS_FILE,
+                                                   'use_thermal': 'true'})
+    return doc.toxml()
+
+
+def test_thermal_off_by_default(urdf_xml):
+    root = ET.fromstring(urdf_xml)
+    assert 'thermal' not in {s.get('type') for s in root.iter('sensor')}
+    assert 'thermal_link' not in {link.get('name') for link in root.findall('link')}
+
+
+def test_thermal_camera(thermal_xml, params):
+    root = ET.fromstring(thermal_xml)
+    links = {link.get('name') for link in root.findall('link')}
+    assert {'thermal_link', 'thermal_optical_frame'} <= links
+    sensor = next(s for s in root.iter('sensor') if s.get('type') == 'thermal')
+    assert sensor.findtext('topic') == '/sim/thermal/image_raw'
+    assert sensor.findtext('gz_frame_id') == 'thermal_optical_frame'
+    assert sensor.find('camera/noise') is None          # Gazebo falla con <noise> en la térmica
+    image = sensor.find('camera/image')
+    th = params['thermal']
+    assert (int(image.findtext('width')), int(image.findtext('height'))) == \
+        (th['width'], th['height']) == (32, 24)
+    assert image.findtext('format') == 'L16'
+    assert math.degrees(float(sensor.findtext('camera/horizontal_fov'))) == \
+        pytest.approx(55.0, abs=0.5)
+    # Relativa a la cámara RGB-D como en el robot físico: 6 cm a la derecha, 3 mm más abajo.
+    cam = params['camera']
+    assert (th['x'], th['y'], th['z']) == pytest.approx((cam['x'], -0.06, cam['z'] - 0.003))
+
+
+def test_thermal_check_urdf(thermal_xml, tmp_path):
+    path = tmp_path / 'findbot_thermal.urdf'
+    path.write_text(thermal_xml)
+    result = subprocess.run(['check_urdf', str(path)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr

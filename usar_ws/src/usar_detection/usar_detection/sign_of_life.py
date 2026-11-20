@@ -1,10 +1,12 @@
 """
 Interfaz común para detectores de signos de vida.
 
-Un detector recibe una observación de los sensores del robot (por ahora la cámara RGB-D) y
-devuelve detecciones con su posición 3D en el frame del sensor. El nodo victim_detector no conoce
-el algoritmo concreto: para añadir otro signo de vida (calor, sonido, CO₂) basta con escribir una
-subclase de SignOfLifeDetector y registrarla con @register_detector, sin modificar el nodo.
+Un detector recibe una observación de un sensor del robot (cámara RGB-D o cámara térmica, según
+su atributo `sensor`) y devuelve detecciones en el frame del sensor: puntos 3D si el sensor mide
+distancia, o solo direcciones (rayos) si no la mide, como la cámara térmica. El nodo
+victim_detector no conoce el algoritmo concreto: para añadir otro signo de vida (sonido, CO₂)
+basta con escribir una subclase de SignOfLifeDetector y registrarla con @register_detector,
+sin modificar el nodo.
 """
 
 from abc import ABC, abstractmethod
@@ -29,6 +31,18 @@ class Observation:
 
 
 @dataclass
+class ThermalObservation:
+    """Imagen de la cámara térmica (°C por píxel, frame óptico de la cámara térmica)."""
+
+    temperature: np.ndarray              # H×W, float32, °C
+    k: Sequence[float]                   # matriz intrínseca 3×3 en fila
+    stamp_sec: float = 0.0
+    frame_id: str = ''
+    #: Transformación 4×4 base del robot ← sensor (base_footprint: z hacia arriba, suelo en z=0).
+    sensor_to_base: Optional[np.ndarray] = None
+
+
+@dataclass
 class Detection:
     """Una detección de un signo de vida."""
 
@@ -40,6 +54,12 @@ class Detection:
     #: Puntos 3D (N×3, frame del sensor) que sustentan la detección; alimentan el mapa de
     #: evidencia. Si el detector no los da, se usa solo `point`.
     points: Optional[np.ndarray] = None
+    #: Sensores sin distancia (térmica): direcciones unitarias (N×3, frame del sensor). El nodo
+    #: las prolonga sobre el /map del robot hasta la primera celda ocupada.
+    rays: Optional[np.ndarray] = None
+    #: Distancia máxima (m) plausible de cada rayo según la geometría de la imagen (N); inf si no
+    #: se puede acotar.
+    ray_max_range: Optional[np.ndarray] = None
 
 
 class SignOfLifeDetector(ABC):
@@ -47,6 +67,8 @@ class SignOfLifeDetector(ABC):
 
     #: Nombre con el que se selecciona el detector en los parámetros (lista `detectors`).
     name = 'base'
+    #: Sensor que consume: 'rgbd' (Observation) o 'thermal' (ThermalObservation).
+    sensor = 'rgbd'
 
     def __init__(self, params: Dict):
         self.params = params
@@ -87,6 +109,12 @@ def create_detector(name: str, params: Dict) -> SignOfLifeDetector:
 def available_detectors() -> List[str]:
     """Nombres de los detectores registrados."""
     return sorted(_REGISTRY)
+
+
+def intrinsics_from_fov(width: int, height: int, horizontal_fov: float) -> List[float]:
+    """Matriz intrínseca (fila) de una cámara ideal de píxeles cuadrados, centro en la imagen."""
+    fx = (width / 2.0) / np.tan(horizontal_fov / 2.0)
+    return [fx, 0.0, width / 2.0, 0.0, fx, height / 2.0, 0.0, 0.0, 1.0]
 
 
 def backproject(u: float, v: float, z: float, k: Sequence[float]) -> Tuple[float, float, float]:

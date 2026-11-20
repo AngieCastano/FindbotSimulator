@@ -4,6 +4,7 @@ Simulación (Capa 2): escenario procedural + Gazebo Harmonic + robot findbot + p
 Uso:
     ros2 launch usar_bringup sim.launch.py seed:=42
     ros2 launch usar_bringup sim.launch.py seed:=7 gui:=false rviz:=false   # sin ventanas
+    ros2 launch usar_bringup sim.launch.py use_thermal:=true   # con la cámara térmica (fase 2)
 
 Si worlds/seed<N>/ no existe, se genera con usar_worldgen. El robot aparece en la pose de
 spawn.yaml (archivo público); este launch NO lee ground_truth.yaml.
@@ -35,6 +36,7 @@ def _launch_setup(context):
     world_params = LaunchConfiguration('world_params').perform(context)
     gui = LaunchConfiguration('gui').perform(context).lower() == 'true'
     robot_params = LaunchConfiguration('robot_params').perform(context)
+    use_thermal = LaunchConfiguration('use_thermal').perform(context).lower() == 'true'
 
     # worlds/seed<N>/ o, con world_params:=<nombre>, worlds/seed<N>_<nombre>/ (se genera si falta)
     world_dir = ensure_world(seed, worlds_dir, world_params)
@@ -44,7 +46,8 @@ def _launch_setup(context):
     description_share = get_package_share_directory('usar_description')
     robot_description = xacro.process_file(
         os.path.join(description_share, 'urdf', 'findbot.urdf.xacro'),
-        mappings={'robot_params': robot_params}).toxml()
+        mappings={'robot_params': robot_params,
+                  'use_thermal': 'true' if use_thermal else 'false'}).toxml()
 
     # -r: arrancar la simulación; sin GUI: solo servidor con renderizado headless (sensores).
     gz_args = f'-r -v 2 {world_sdf}' if gui else f'-r -s -v 2 --headless-rendering {world_sdf}'
@@ -68,6 +71,21 @@ def _launch_setup(context):
         parameters=[{'config_file': os.path.join(description_share, 'config', 'bridge.yaml'),
                      'use_sim_time': True}])
 
+    # Cámara térmica (fase 2): puente de la imagen cruda y modelo de ruido del MLX90640.
+    thermal = []
+    if use_thermal:
+        thermal = [
+            Node(package='ros_gz_bridge', executable='parameter_bridge',
+                 name='thermal_bridge', output='screen',
+                 parameters=[{'config_file': os.path.join(description_share, 'config',
+                                                          'bridge_thermal.yaml'),
+                              'use_sim_time': True}]),
+            Node(package='usar_sim_sensors', executable='thermal_camera_sim', output='screen',
+                 parameters=[os.path.join(get_package_share_directory('usar_sim_sensors'),
+                                          'config', 'thermal_camera_sim.yaml'),
+                             {'use_sim_time': True}]),
+        ]
+
     rviz = Node(
         package='rviz2', executable='rviz2', output='log',
         arguments=['-d', LaunchConfiguration('rviz_config').perform(context)],
@@ -76,7 +94,7 @@ def _launch_setup(context):
 
     return [
         LogInfo(msg=f'[sim] Semilla {seed} | mundo: {world_sdf} | spawn: {spawn}'),
-        gazebo, robot_state_publisher, spawn_robot, bridge, rviz,
+        gazebo, robot_state_publisher, spawn_robot, bridge, *thermal, rviz,
     ]
 
 
@@ -99,5 +117,7 @@ def generate_launch_description():
                               default_value=os.path.join(description_share, 'config',
                                                          'robot.yaml'),
                               description='Parámetros del robot (dimensiones y sensores)'),
+        DeclareLaunchArgument('use_thermal', default_value='false',
+                              description='Cámara térmica MLX90640 (fase 2)'),
         OpaqueFunction(function=_launch_setup),
     ])

@@ -30,7 +30,7 @@ from launch_ros.actions import Node
 from usar_worldgen.worlds import ensure_world, resolve_world_params
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'quick', 'detection',
-                  'results_dir']
+                  'results_dir', 'use_thermal']
 
 
 def _ensure_ground_truth(seed: int, worlds_dir: str, world_params: str) -> str:
@@ -99,6 +99,8 @@ def generate_launch_description():
         DeclareLaunchArgument('gui', default_value=windows,
                               description='Abrir la interfaz gráfica de Gazebo'),
         DeclareLaunchArgument('rviz', default_value=windows, description='Abrir RViz'),
+        DeclareLaunchArgument('use_thermal', default_value='false',
+                              description='Cámara térmica MLX90640 y detector de calor (fase 2)'),
         DeclareLaunchArgument('quick', default_value='false',
                               description='Prueba corta (5 min de exploración)'),
         DeclareLaunchArgument('detection', default_value='true',

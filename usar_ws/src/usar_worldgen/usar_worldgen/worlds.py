@@ -10,7 +10,7 @@ world_params puede ser una ruta a un YAML o el nombre corto de un YAML incluido 
 """
 
 import os
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 PARAMS_SUFFIX = '_params.yaml'
 REQUIRED_FILES = ('world.sdf', 'spawn.yaml', 'ground_truth.yaml')
@@ -56,18 +56,40 @@ def world_dir_for(seed: int, worlds_dir: str, tag: str) -> str:
     return os.path.join(worlds_dir, f'seed{seed}' + (f'_{tag}' if tag else ''))
 
 
+def _is_current(world_dir: str, expected: Dict) -> bool:
+    """Cierto si el mundo guardado se generó con estos parámetros y el formato actual."""
+    import yaml
+
+    from .ground_truth import FORMAT_VERSION
+    if not all(os.path.isfile(os.path.join(world_dir, f)) for f in REQUIRED_FILES):
+        return False
+    try:
+        with open(os.path.join(world_dir, 'ground_truth.yaml'), encoding='utf-8') as stream:
+            gt = yaml.safe_load(stream)
+    except (OSError, yaml.YAMLError):
+        return False
+    return (isinstance(gt, dict) and gt.get('format_version') == FORMAT_VERSION
+            and gt.get('params') == expected)
+
+
 def ensure_world(seed: int, worlds_dir: str, world_params: str = '',
                  config_dir: Optional[str] = None) -> str:
-    """Carpeta del mundo (seed, variante); lo genera si falta algún archivo."""
-    from .cli import main as generate_world_cli
+    """
+    Carpeta del mundo (seed, variante); lo genera si falta.
+
+    También lo regenera si se generó con otros parámetros (p. ej. tras cambiar el YAML de la
+    variante) o con un formato de ground truth anterior: la semilla da el mismo escenario.
+    """
+    from .cli import build_parser, main as generate_world_cli, params_from_args
 
     params_path, tag = resolve_world_params(world_params, config_dir)
     world_dir = world_dir_for(seed, os.path.abspath(os.path.expanduser(worlds_dir)), tag)
-    if not all(os.path.isfile(os.path.join(world_dir, f)) for f in REQUIRED_FILES):
-        args = ['--seed', str(seed), '--out', world_dir]
-        if params_path:
-            args += ['--params', params_path]
-        if generate_world_cli(args) != 0:
+    args = ['--seed', str(seed), '--out', world_dir]
+    if params_path:
+        args += ['--params', params_path]
+    expected = params_from_args(build_parser().parse_args(args)).to_dict()
+    if not _is_current(world_dir, expected):
+        if generate_world_cli(args + ['--quiet']) != 0:
             variant = tag or 'default'
             raise RuntimeError(f'No se pudo generar el mundo de la semilla {seed} ({variant})')
     return world_dir

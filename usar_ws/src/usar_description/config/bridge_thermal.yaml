@@ -1,0 +1,7 @@
+# Puente de la cámara térmica (solo con use_thermal:=true). Gazebo publica la imagen cruda
+# (mono16, 0.01 K por unidad); usar_sim_sensors/thermal_camera_sim la convierte en /thermal/image.
+- ros_topic_name: /sim/thermal/image_raw
+  gz_topic_name: /sim/thermal/image_raw
+  ros_type_name: sensor_msgs/msg/Image
+  gz_type_name: gz.msgs.Image
+  direction: GZ_TO_ROS

@@ -7,6 +7,7 @@
 #   scripts/run_batch.sh 1 2 3 42
 #   QUICK=true scripts/run_batch.sh 1 2  # 5 min de exploración por semilla (prueba rápida)
 #   WORLD_PARAMS=dusty scripts/run_batch.sh 1 2 3   # variante del escenario (víctimas grises)
+#   USE_THERMAL=true scripts/run_batch.sh 42         # con cámara térmica y detector de calor
 #
 # Variables opcionales:
 #   RESULTS_DIR      carpeta de salida (por defecto results/batch_<fecha>)
@@ -27,6 +28,7 @@ OUT="${RESULTS_DIR:-$REPO/results/batch_$(date +%Y%m%d_%H%M%S)}"
 TIMEOUT="${MISSION_TIMEOUT:-1800}"
 QUICK="${QUICK:-false}"
 WORLD_PARAMS="${WORLD_PARAMS:-}"
+USE_THERMAL="${USE_THERMAL:-false}"
 
 if ! command -v ros2 >/dev/null 2>&1 || ! ros2 pkg prefix usar_metrics >/dev/null 2>&1; then
   # shellcheck disable=SC1091
@@ -35,9 +37,10 @@ fi
 mkdir -p "$OUT"
 extra_args=()
 [ -n "$WORLD_PARAMS" ] && extra_args+=("world_params:=$WORLD_PARAMS")
+[ "$USE_THERMAL" = "true" ] && extra_args+=("use_thermal:=true")
 cd "$REPO/usar_ws" || exit 1   # los mundos se generan en usar_ws/worlds/
 
-echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | resultados: $OUT"
+echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | térmica=$USE_THERMAL | resultados: $OUT"
 failed=()
 for seed in "${SEEDS[@]}"; do
   log="$OUT/seed${seed}_launch.log"

@@ -1,14 +1,18 @@
 """
-Nodo victim_detector: detecta víctimas con la cámara RGB-D y las ubica en el mapa.
+Nodo victim_detector: detecta víctimas con los sensores del robot y las ubica en el mapa.
 
 Entradas (solo sensores y estimación propia del robot):
-  /camera/image, /camera/depth_image, /camera/camera_info
-  TF map → camera_optical_frame (SLAM + modelo del robot)
-  /map (mapa del propio robot): descarta evidencia en celdas desconocidas
+  /camera/image, /camera/depth_image, /camera/camera_info   (detectores de la cámara RGB-D)
+  /thermal/image (32FC1, °C)                                 (detector térmico, fase 2)
+  TF map → frames ópticos de las cámaras (SLAM + modelo del robot)
+  /map (mapa del propio robot): descarta evidencia en celdas desconocidas y limita los rayos
+       de la cámara térmica, que se triangulan (intersección de rayos desde varias direcciones)
 Salidas:
   /victims/markers     (visualization_msgs/MarkerArray) víctimas confirmadas y tentativas
-  /victims/detections  (geometry_msgs/PoseArray, frame map) víctimas confirmadas
+  /victims/detections  (geometry_msgs/PoseArray, frame map) víctimas confirmadas (fusionadas)
+  /victims/detections/<detector> (PoseArray) confirmadas por cada detector por separado
   /victims/debug_image (sensor_msgs/Image) imagen con la segmentación superpuesta
+  /thermal/debug_image (sensor_msgs/Image) imagen térmica en falso color con las manchas
   log CSV en log_dir   (tiempo, víctima, posición estimada, observaciones, confianza)
 
 Los detectores de signos de vida se eligen con el parámetro `detectors`; cada uno lee sus
@@ -39,8 +43,11 @@ from std_msgs.msg import ColorRGBA
 import tf2_ros
 from usar_detection import color_detector  # noqa: F401  (registra ColorShapeDetector)
 from usar_detection import human_shape_detector  # noqa: F401  (registra HumanShapeDetector)
-from usar_detection.map_filter import known_cells_mask
-from usar_detection.sign_of_life import create_detector, Observation
+from usar_detection import thermal_detector  # noqa: F401  (registra ThermalDetector)
+from usar_detection.bearing_evidence import BearingEvidence
+from usar_detection.map_filter import known_cells_mask, ray_extents
+from usar_detection.sign_of_life import (create_detector, intrinsics_from_fov, Observation,
+                                         ThermalObservation)
 from usar_detection.tracker import VictimRegistry, VictimTracker
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -63,6 +70,17 @@ PARAMS = {
     'require_known_map': True,
     'map_topic': '/map',
     'publish_debug_image': True,
+    # Cámara térmica (fase 2): sin camera_info, como el MLX90640 real; intrínsecos ideales.
+    'thermal_topic': '/thermal/image',
+    'thermal_horizontal_fov': 0.96,
+    'thermal_processing_rate': 4.0,
+    'thermal_min_range': 0.15,
+    'thermal_evidence_height': 0.1,
+    'thermal_ray_beyond': 0.4,
+    'thermal_bearing_cell': 0.15,
+    'thermal_bearing_bins': 12,
+    'thermal_min_bearings': 3,
+    'map_occupied_threshold': 65,
     'log_dir': '',
     'log_prefix': 'victims',
 }
@@ -82,7 +100,16 @@ def quaternion_matrix(q):
 
 
 #: Nombre corto de cada detector en la etiqueta de los marcadores.
-SOURCE_LABELS = {'color_shape': 'color', 'human_shape': 'forma'}
+SOURCE_LABELS = {'color_shape': 'color', 'human_shape': 'forma', 'thermal': 'calor'}
+
+
+def _matrix(tf):
+    """Matriz homogénea 4×4 de un TransformStamped."""
+    m = np.eye(4)
+    m[:3, :3] = quaternion_matrix(tf.transform.rotation)
+    m[:3, 3] = [tf.transform.translation.x, tf.transform.translation.y,
+                tf.transform.translation.z]
+    return m
 
 
 class _Retracted:
@@ -102,6 +129,13 @@ class VictimDetector(Node):
         self.p = {name: self._param(name, default) for name, default in PARAMS.items()}
         self.detectors = [create_detector(name, self._prefixed(name))
                           for name in self.p['detectors']]
+        self.rgbd_detectors = [d for d in self.detectors if d.sensor == 'rgbd']
+        self.thermal_detectors = [d for d in self.detectors if d.sensor == 'thermal']
+        self.bearing_evidence = {
+            d.name: BearingEvidence(self.p['thermal_bearing_cell'],
+                                    self.p['thermal_bearing_bins'],
+                                    self.p['thermal_min_bearings'])
+            for d in self.thermal_detectors}
         self.trackers = {
             det.name: VictimTracker(
                 self.p['min_observations'], cell_size=self.p['evidence_cell'],
@@ -109,8 +143,13 @@ class VictimDetector(Node):
                 match_distance=self.p['match_distance'], shape=det.group_shape())
             for det in self.detectors}
         self.registry = VictimRegistry(self.p['merge_distance'], self.p['match_distance'])
-        self.sensor_to_base = None
+        self.sensor_to_base = {}
         self.map_msg = None
+        self.map_grid = None
+        self.thermal_frames = 0
+        self.thermal_last = None
+        self.rays_cast = 0
+        self.rays_hit = 0           # celdas de evidencia trianguladas (acumulado)
         self.points_outside_map = 0
         self.bridge = CvBridge()
         self.camera_k = None
@@ -122,24 +161,31 @@ class VictimDetector(Node):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-        self.create_subscription(CameraInfo, self.p['camera_info_topic'], self._on_info,
-                                 qos_profile_sensor_data)
-        rgb_sub = message_filters.Subscriber(self, Image, self.p['rgb_topic'],
-                                             qos_profile=qos_profile_sensor_data)
-        depth_sub = message_filters.Subscriber(self, Image, self.p['depth_topic'],
-                                               qos_profile=qos_profile_sensor_data)
-        self.sync = message_filters.ApproximateTimeSynchronizer(
-            [rgb_sub, depth_sub], queue_size=5, slop=self.p['sync_slop'])
-        self.sync.registerCallback(self._on_images)
-        if self.p['require_known_map']:
+        if self.rgbd_detectors:
+            self.create_subscription(CameraInfo, self.p['camera_info_topic'], self._on_info,
+                                     qos_profile_sensor_data)
+            rgb_sub = message_filters.Subscriber(self, Image, self.p['rgb_topic'],
+                                                 qos_profile=qos_profile_sensor_data)
+            depth_sub = message_filters.Subscriber(self, Image, self.p['depth_topic'],
+                                                   qos_profile=qos_profile_sensor_data)
+            self.sync = message_filters.ApproximateTimeSynchronizer(
+                [rgb_sub, depth_sub], queue_size=5, slop=self.p['sync_slop'])
+            self.sync.registerCallback(self._on_images)
+        if self.thermal_detectors:
+            self.create_subscription(Image, self.p['thermal_topic'], self._on_thermal,
+                                     qos_profile_sensor_data)
+        if self.p['require_known_map'] or self.thermal_detectors:
             latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                                  reliability=ReliabilityPolicy.RELIABLE)
-            self.create_subscription(OccupancyGrid, self.p['map_topic'],
-                                     lambda m: setattr(self, 'map_msg', m), latched)
+            self.create_subscription(OccupancyGrid, self.p['map_topic'], self._on_map, latched)
 
         self.marker_pub = self.create_publisher(MarkerArray, '/victims/markers', 10)
         self.pose_pub = self.create_publisher(PoseArray, '/victims/detections', 10)
         self.debug_pub = self.create_publisher(Image, '/victims/debug_image', 2)
+        self.thermal_debug_pub = self.create_publisher(Image, '/thermal/debug_image', 2)
+        # Confirmaciones de cada detector por separado (métricas por modalidad).
+        self.source_pubs = {det.name: self.create_publisher(
+            PoseArray, f'/victims/detections/{det.name}', 10) for det in self.detectors}
         self.log_path, self._log = self._open_log()
         self.create_timer(10.0, self._report)
         self.get_logger().info(
@@ -209,18 +255,18 @@ class VictimDetector(Node):
         return tf
 
     def _base_transform(self, frame_id):
-        """Matriz 4×4 base ← cámara (fija: se consulta una vez)."""
-        if self.sensor_to_base is None:
+        """Matriz 4×4 base ← sensor (fija: se consulta una vez por frame)."""
+        if frame_id not in self.sensor_to_base:
             try:
                 tf = self.tf_buffer.lookup_transform(self.p['base_frame'], frame_id, Time())
             except tf2_ros.TransformException:
                 return None
-            m = np.eye(4)
-            m[:3, :3] = quaternion_matrix(tf.transform.rotation)
-            m[:3, 3] = [tf.transform.translation.x, tf.transform.translation.y,
-                        tf.transform.translation.z]
-            self.sensor_to_base = m
-        return self.sensor_to_base
+            self.sensor_to_base[frame_id] = _matrix(tf)
+        return self.sensor_to_base[frame_id]
+
+    def _on_map(self, msg):
+        self.map_msg = msg
+        self.map_grid = np.asarray(msg.data, dtype=np.int8)
 
     def _tf_failed(self, error):
         self.tf_failures += 1
@@ -233,7 +279,9 @@ class VictimDetector(Node):
             f'Imágenes: {self.pairs} pares recibidos, {self.frames} procesados, '
             f'{self.tf_failures} sin TF; {self.detections} detecciones '
             f'({self.points_outside_map} puntos fuera del mapa conocido); '
-            f'{len(self.registry.victims)} víctimas confirmadas; por detector: ' + ', '.join(
+            + (f'térmica: {self.thermal_frames} imágenes, {self.rays_cast} rayos, '
+               f'{self.rays_hit} celdas trianguladas; ' if self.thermal_detectors else '')
+            + f'{len(self.registry.victims)} víctimas confirmadas; por detector: ' + ', '.join(
                 f'{name} {len(t.confirmed())} confirmadas/{len(t.tentative())} tentativas'
                 for name, t in self.trackers.items()))
 
@@ -256,20 +304,81 @@ class VictimDetector(Node):
         obs = Observation(rgb=rgb, depth=depth, k=self.camera_k, stamp_sec=sec,
                           frame_id=rgb_msg.header.frame_id,
                           sensor_to_base=self._base_transform(rgb_msg.header.frame_id))
-        rot = quaternion_matrix(tf.transform.rotation)
-        trans = np.array([tf.transform.translation.x, tf.transform.translation.y,
-                          tf.transform.translation.z])
+        world = _matrix(tf)
         all_detections = []
-        for detector in self.detectors:
+        for detector in self.rgbd_detectors:
             detections = detector.detect(obs)
             self.detections += len(detections)
             all_detections.extend(detections)
             sensor_points = [d.points if d.points is not None else np.array([d.point])
                              for d in detections]
-            points = (np.vstack(sensor_points) @ rot.T + trans) if sensor_points \
-                else np.zeros((0, 3))
-            points = self._in_known_map(points)
-            self.trackers[detector.name].update(points, sec)
+            points = (np.vstack(sensor_points) @ world[:3, :3].T + world[:3, 3]) \
+                if sensor_points else np.zeros((0, 3))
+            self.trackers[detector.name].update(self._in_known_map(points), sec)
+        self._update_registry(sec, rgb_msg.header.stamp)
+        if self.p['publish_debug_image'] and self.debug_pub.get_subscription_count() > 0:
+            self._publish_debug(rgb, all_detections, rgb_msg.header)
+
+    def _on_thermal(self, msg):
+        """Imagen térmica: manchas calientes → rayos → primera celda ocupada del /map."""
+        stamp = Time.from_msg(msg.header.stamp)
+        sec = stamp.nanoseconds * 1e-9
+        if self.thermal_last is not None and \
+                sec - self.thermal_last < 1.0 / self.p['thermal_processing_rate'] - 1e-3:
+            return
+        if msg.encoding != '32FC1':
+            self._tf_failed(f'imagen térmica con codificación {msg.encoding} (se espera 32FC1)')
+            return
+        tf = self._camera_transform(msg.header.frame_id, stamp)
+        if tf is None:
+            return
+        self.thermal_last = sec
+        self.thermal_frames += 1
+        temperature = self.bridge.imgmsg_to_cv2(msg, desired_encoding='32FC1')
+        obs = ThermalObservation(
+            temperature=temperature, stamp_sec=sec, frame_id=msg.header.frame_id,
+            k=intrinsics_from_fov(msg.width, msg.height, self.p['thermal_horizontal_fov']),
+            sensor_to_base=self._base_transform(msg.header.frame_id))
+        world = _matrix(tf)
+        all_detections = []
+        for detector in self.thermal_detectors:
+            detections = detector.detect(obs)
+            self.detections += len(detections)
+            all_detections.extend(detections)
+            points = self._triangulate(detector.name, detections, world)
+            self.trackers[detector.name].update(self._in_known_map(points), sec)
+        self._update_registry(sec, msg.header.stamp)
+        if self.p['publish_debug_image'] and \
+                self.thermal_debug_pub.get_subscription_count() > 0:
+            self._publish_thermal_debug(temperature, all_detections, msg.header)
+
+    def _triangulate(self, name, detections, world):
+        """
+        Puntos de evidencia (frame global) de detecciones con rayos y sin distancia.
+
+        Cada rayo se recorta con el /map del robot (hasta el primer obstáculo más
+        thermal_ray_beyond, la primera celda desconocida o su distancia máxima) y se suma a la
+        rejilla de intersección; son evidencia las celdas que este rayo toca y que ya se han
+        cruzado desde thermal_min_bearings direcciones distintas.
+        """
+        if not detections or self.map_msg is None:
+            return np.zeros((0, 3))
+        rays = np.vstack([d.rays for d in detections]) @ world[:3, :3].T
+        bounds = np.concatenate([d.ray_max_range for d in detections])
+        info = self.map_msg.info
+        origin = world[:3, 3]
+        lengths = ray_extents(self.map_grid, info.origin.position.x, info.origin.position.y,
+                              info.resolution, info.width, info.height, origin[:2], rays[:, :2],
+                              bounds, self.p['thermal_min_range'], self.p['thermal_ray_beyond'],
+                              self.p['map_occupied_threshold'])
+        self.rays_cast += len(lengths)
+        xy = self.bearing_evidence[name].add_rays(origin[:2], rays[:, :2], lengths,
+                                                  self.p['thermal_min_range'])
+        self.rays_hit += len(xy)
+        return np.column_stack([xy, np.full(len(xy), self.p['thermal_evidence_height'])])
+
+    def _update_registry(self, sec, stamp):
+        """Fusiona las confirmaciones de todos los detectores, registra eventos y publica."""
         newly, retracted = self.registry.update(
             {name: t.confirmed() for name, t in self.trackers.items()},
             self.p['min_observations'])
@@ -283,9 +392,7 @@ class VictimDetector(Node):
             self.get_logger().info(f'Víctima {vid} retirada: ya no la confirma ningún detector '
                                    '(su grupo dejó de cumplir la forma o se unió a otro)')
             self._log_victim('retracted', _Retracted(vid), sec)
-        self._publish(rgb_msg.header.stamp)
-        if self.p['publish_debug_image'] and self.debug_pub.get_subscription_count() > 0:
-            self._publish_debug(rgb, all_detections, rgb_msg.header)
+        self._publish(stamp)
 
     def _in_known_map(self, points):
         """Puntos que caen en celdas conocidas del /map (sin mapa aún: se descartan todos)."""
@@ -294,7 +401,7 @@ class VictimDetector(Node):
         if self.map_msg is None:
             return points[:0]
         info = self.map_msg.info
-        keep = known_cells_mask(points, self.map_msg.data, info.origin.position.x,
+        keep = known_cells_mask(points, self.map_grid, info.origin.position.x,
                                 info.origin.position.y, info.resolution, info.width,
                                 info.height)
         self.points_outside_map += int((~keep).sum())
@@ -339,10 +446,19 @@ class VictimDetector(Node):
                                       (0.7, 0.7, 0.7, 0.6)))
         self.marker_pub.publish(MarkerArray(markers=markers))
         self.pose_pub.publish(poses)
+        for name, pub in self.source_pubs.items():
+            per_source = PoseArray()
+            per_source.header = poses.header
+            for track in self.trackers[name].confirmed():
+                pose = Pose()
+                pose.position.x, pose.position.y = track.position[0], track.position[1]
+                pose.orientation.w = 1.0
+                per_source.poses.append(pose)
+            pub.publish(per_source)
 
     def _publish_debug(self, rgb, detections, header):
         overlay = rgb.copy()
-        for detector in self.detectors:
+        for detector in self.rgbd_detectors:
             mask = detector.debug_mask()
             if mask is not None:
                 tint = DEBUG_COLORS.get(detector.name, (127, 127, 0))
@@ -356,9 +472,32 @@ class VictimDetector(Node):
         msg.header = header
         self.debug_pub.publish(msg)
 
+    def _publish_thermal_debug(self, temperature, detections, header, scale=10):
+        """Imagen térmica ampliada en falso color, con el contorno de las manchas calientes."""
+        temp = np.nan_to_num(temperature, nan=0.0)
+        lo, hi = 15.0, 40.0
+        norm = np.clip((temp - lo) / (hi - lo) * 255.0, 0, 255).astype(np.uint8)
+        big = cv2.resize(norm, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+        color = cv2.cvtColor(cv2.applyColorMap(big, cv2.COLORMAP_INFERNO), cv2.COLOR_BGR2RGB)
+        for detector in self.thermal_detectors:
+            mask = detector.debug_mask()
+            if mask is not None:
+                mask_big = cv2.resize(mask, None, fx=scale, fy=scale,
+                                      interpolation=cv2.INTER_NEAREST)
+                contours, _ = cv2.findContours(mask_big, cv2.RETR_EXTERNAL,
+                                               cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(color, contours, -1, (0, 255, 0), 2)
+        for det in detections:
+            u, v = int(det.pixel[0] * scale), int(det.pixel[1] * scale)
+            cv2.putText(color, f'{det.extra["temperature"]:.1f} C', (u + 6, v - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        msg = self.bridge.cv2_to_imgmsg(color, encoding='rgb8')
+        msg.header = header
+        self.thermal_debug_pub.publish(msg)
+
     def destroy_node(self):
         """Escribe el resumen final de víctimas en el log antes de cerrar."""
-        sim_time = self.last_processed or 0.0
+        sim_time = max(self.last_processed or 0.0, self.thermal_last or 0.0)
         for victim in self.registry.victims:
             self._log_victim('final', victim, sim_time)
         if self._log is not None:

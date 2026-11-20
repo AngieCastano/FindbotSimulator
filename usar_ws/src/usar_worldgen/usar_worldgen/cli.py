@@ -41,6 +41,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="aspecto de las víctimas ('dusty': grises, sin color distintivo)")
     parser.add_argument('--n-low-debris', type=int,
                         help='número de escombros bajos (tablones, losas, bloques)')
+    parser.add_argument('--victim-temperature', type=float, metavar='C',
+                        help='temperatura de la superficie de las víctimas en °C')
+    parser.add_argument('--n-warm-debris', type=int,
+                        help='escombros tibios (falsos positivos térmicos)')
     parser.add_argument('--robot-spawn', type=float, nargs=3, metavar=('X', 'Y', 'YAW'),
                         help='pose de aparición del robot (m, m, rad)')
     parser.add_argument('--out', help='directorio de salida (por defecto worlds/seed<SEMILLA>)')
@@ -62,6 +66,8 @@ def params_from_args(args: argparse.Namespace) -> WorldParams:
         'robot_spawn': args.robot_spawn,
         'victim_appearance': args.victim_appearance,
         'n_low_debris': args.n_low_debris,
+        'victim_temperature_c': args.victim_temperature,
+        'n_warm_debris': args.n_warm_debris,
     })
     params.validate()
     return params

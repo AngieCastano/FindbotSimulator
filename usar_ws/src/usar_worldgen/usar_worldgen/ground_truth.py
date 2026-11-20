@@ -15,7 +15,9 @@ from .geometry import Box
 from .grid import GridSpec, rle_decode, rle_encode
 
 # 2: escombros con 'category' (rubble / plank / slab / block) y víctimas con 'appearance'.
-FORMAT_VERSION = 2
+# 3: temperaturas (Fase 9): 'temperature_c' en víctimas y en escombros tibios; ambiente en
+#    'ambient_temperature_c'.
+FORMAT_VERSION = 3
 
 
 def build_ground_truth(world: GeneratedWorld) -> Dict[str, Any]:
@@ -29,6 +31,8 @@ def build_ground_truth(world: GeneratedWorld) -> Dict[str, Any]:
         entry: Dict[str, Any] = {'id': obs.idx, 'type': obs.kind, 'x': obs.shape.x,
                                  'y': obs.shape.y, 'yaw': obs.yaw, 'height': obs.height,
                                  'category': obs.category}
+        if obs.temperature_c is not None:
+            entry['temperature_c'] = obs.temperature_c
         if isinstance(obs.shape, Box):
             entry.update(size_x=obs.shape.size_x, size_y=obs.shape.size_y)
         else:
@@ -37,7 +41,8 @@ def build_ground_truth(world: GeneratedWorld) -> Dict[str, Any]:
 
     victims = [{'id': v.idx, 'name': f'victim_{v.idx:02d}', 'x': v.shape.x, 'y': v.shape.y,
                 'yaw': v.shape.yaw, 'length': v.shape.size_x, 'width': v.shape.size_y,
-                'reach_distance': v.reach_distance, 'appearance': params.victim_appearance}
+                'reach_distance': v.reach_distance, 'appearance': params.victim_appearance,
+                'temperature_c': params.victim_temperature_c}
                for v in world.victims]
 
     grid = world.grid
@@ -52,6 +57,7 @@ def build_ground_truth(world: GeneratedWorld) -> Dict[str, Any]:
         'params': params.to_dict(),
         'bounds': {'x_min': x_min, 'x_max': x_max, 'y_min': y_min, 'y_max': y_max},
         'robot_spawn': {'x': spawn_x, 'y': spawn_y, 'yaw': spawn_yaw},
+        'ambient_temperature_c': params.ambient_temperature_c,
         'obstacles': obstacles,
         'victims': victims,
         'explorable_area': {

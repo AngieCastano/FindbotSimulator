@@ -18,7 +18,11 @@ import pytest
 import yaml
 
 SRC = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ROBOT_PACKAGES = ['usar_description', 'usar_bringup', 'usar_exploration', 'usar_detection']
+# usar_sim_sensors (Capa 2) tampoco lee el ground truth por ahora: el modelo del MLX90640 solo
+# transforma la imagen de Gazebo. La excepción aprobada para los simuladores de sensores (Fase
+# 10: CO₂, sonido, radar) se documentará aquí cuando exista código que la use.
+ROBOT_PACKAGES = ['usar_description', 'usar_bringup', 'usar_exploration', 'usar_detection',
+                  'usar_sim_sensors']
 #: Archivos del robot autorizados a nombrar el ground truth, y por qué.
 ALLOWED = {
     os.path.join('usar_bringup', 'launch', 'mission.launch.py'):
@@ -119,12 +123,14 @@ def test_evaluator_publishes_nothing():
         assert 'create_publisher' not in calls, f'{path} publica en ROS'
 
 
-def test_bridge_does_not_expose_model_poses():
-    path = os.path.join(SRC, 'usar_description', 'config', 'bridge.yaml')
+@pytest.mark.parametrize('bridge_file', ['bridge.yaml', 'bridge_thermal.yaml'])
+def test_bridge_does_not_expose_model_poses(bridge_file):
+    path = os.path.join(SRC, 'usar_description', 'config', bridge_file)
     with open(path, 'r', encoding='utf-8') as stream:
         entries = yaml.safe_load(stream)
+    # La imagen térmica es una medida del sensor (temperatura por píxel), no una posición.
     allowed = {'/clock', '/cmd_vel', '/odom', '/tf', '/joint_states', '/scan', '/camera/image',
-               '/camera/depth_image', '/camera/camera_info'}
+               '/camera/depth_image', '/camera/camera_info', '/sim/thermal/image_raw'}
     topics = {e['gz_topic_name'] for e in entries}
     assert topics <= allowed, f'Tópicos de Gazebo no auditados en el puente: {topics - allowed}'
     for entry in entries:

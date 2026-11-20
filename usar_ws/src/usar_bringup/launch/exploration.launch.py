@@ -24,7 +24,8 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from usar_worldgen.worlds import resolve_world_params
 
-FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'rviz_config']
+FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'rviz_config',
+                  'use_thermal']
 
 
 def generate_launch_description():
@@ -51,9 +52,14 @@ def generate_launch_description():
         seed = LaunchConfiguration('seed').perform(context)
         _, tag = resolve_world_params(LaunchConfiguration('world_params').perform(context))
         variant = f'_{tag}' if tag else ''
+        params = [LaunchConfiguration('detector_params').perform(context)]
+        if LaunchConfiguration('use_thermal').perform(context).lower() == 'true':
+            # Añade el detector térmico a la lista de signos de vida activos.
+            params.append(os.path.join(get_package_share_directory('usar_detection'), 'config',
+                                       'detector_thermal.yaml'))
         return [Node(package='usar_detection', executable='victim_detector',
                      name='victim_detector', output='screen',
-                     parameters=[LaunchConfiguration('detector_params').perform(context),
+                     parameters=[*params,
                                  {'use_sim_time': True,
                                   'log_dir': LaunchConfiguration('results_dir').perform(context),
                                   'log_prefix': f'victims_seed{seed}{variant}'}])]
@@ -68,6 +74,8 @@ def generate_launch_description():
         DeclareLaunchArgument('gui', default_value='true',
                               description='Abrir la interfaz gráfica de Gazebo'),
         DeclareLaunchArgument('rviz', default_value='true', description='Abrir RViz'),
+        DeclareLaunchArgument('use_thermal', default_value='false',
+                              description='Cámara térmica MLX90640 y detector de calor (fase 2)'),
         DeclareLaunchArgument('rviz_config', default_value=os.path.join(
             bringup_share, 'rviz', 'exploration.rviz')),
         DeclareLaunchArgument('explorer_params', default_value=os.path.join(

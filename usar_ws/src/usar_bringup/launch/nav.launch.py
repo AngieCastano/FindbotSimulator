@@ -94,7 +94,7 @@ def _launch_setup(context):
         launch_arguments={
             'seed': config('seed'), 'worlds_dir': config('worlds_dir'),
             'world_params': config('world_params'), 'gui': config('gui'),
-            'robot_params': config('robot_params'),
+            'robot_params': config('robot_params'), 'use_thermal': config('use_thermal'),
             'rviz': 'false',  # este launch abre su propio RViz con mapa y costmaps
         }.items())
 
@@ -134,6 +134,8 @@ def generate_launch_description():
         DeclareLaunchArgument('gui', default_value='true',
                               description='Abrir la interfaz gráfica de Gazebo'),
         DeclareLaunchArgument('rviz', default_value='true', description='Abrir RViz'),
+        DeclareLaunchArgument('use_thermal', default_value='false',
+                              description='Cámara térmica MLX90640 (fase 2)'),
         DeclareLaunchArgument('robot_params', default_value=os.path.join(
             description_share, 'config', 'robot.yaml')),
         DeclareLaunchArgument('slam_params', default_value=os.path.join(cfg, 'slam_toolbox.yaml')),

@@ -1,12 +1,13 @@
 """Exportación del escenario generado a un mundo SDF para Gazebo Harmonic."""
 
 import math
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from .generator import GeneratedWorld, Obstacle, Victim
 from .geometry import Box
 
 SDF_VERSION = '1.9'
+KELVIN = 273.15
 
 VICTIM_RGB = (1.0, 0.4, 0.0)  # naranja intenso
 VICTIM_EMISSIVE = (0.25, 0.1, 0.0)
@@ -68,13 +69,21 @@ def _static_model(name: str, pose: Sequence[float], parts: List[str]) -> str:
             f'    </model>')
 
 
+def _thermal(temperature_c: Optional[float]) -> str:
+    """Componente térmico de Gazebo (temperatura propia del visual, en kelvin)."""
+    if temperature_c is None:
+        return ''
+    return ('<plugin filename="gz-sim-thermal-system" name="gz::sim::systems::Thermal">'
+            f'<temperature>{_f(temperature_c + KELVIN)}</temperature></plugin>')
+
+
 def _part(name: str, kind: str, dims: Sequence[float], pose: Sequence[float],
-          material: str) -> str:
+          material: str, temperature_c: Optional[float] = None) -> str:
     geom = _geometry(kind, dims)
     return (f'        <collision name="{name}_collision"><pose>{_vec(pose)}</pose>'
             f'<geometry>{geom}</geometry></collision>\n'
             f'        <visual name="{name}_visual"><pose>{_vec(pose)}</pose>'
-            f'<geometry>{geom}</geometry>{material}</visual>')
+            f'<geometry>{geom}</geometry>{material}{_thermal(temperature_c)}</visual>')
 
 
 def _walls(world: GeneratedWorld) -> List[str]:
@@ -100,14 +109,16 @@ def _obstacle_model(obstacle: Obstacle) -> str:
         dims = (shape.size_x, shape.size_y, obstacle.height)
     else:
         dims = (shape.radius, obstacle.height)
-    part = _part('rubble', obstacle.kind, dims, (0, 0, 0, 0, 0, 0), _material(obstacle.color))
+    part = _part('rubble', obstacle.kind, dims, (0, 0, 0, 0, 0, 0), _material(obstacle.color),
+                 obstacle.temperature_c)
     pose = (shape.x, shape.y, obstacle.height / 2, 0, 0, obstacle.yaw)
     return _static_model(f'obstacle_{obstacle.idx:03d}', pose, [part])
 
 
-def _victim_model(victim: Victim, appearance: str) -> str:
+def _victim_model(victim: Victim, appearance: str, temperature_c: float) -> str:
     material = _material(*VICTIM_MATERIALS[appearance])
-    parts = [_part(name, kind, dims, pose, material) for name, kind, dims, pose in VICTIM_PARTS]
+    parts = [_part(name, kind, dims, pose, material, temperature_c)
+             for name, kind, dims, pose in VICTIM_PARTS]
     pose = (victim.shape.x, victim.shape.y, 0, 0, 0, victim.shape.yaw)
     return _static_model(f'victim_{victim.idx:02d}', pose, parts)
 
@@ -118,7 +129,8 @@ def world_to_sdf(world: GeneratedWorld) -> str:
     width, length = params.size
     ground_size = _vec((width + 10, length + 10))
     models = [*_walls(world), *(_obstacle_model(o) for o in world.obstacles),
-              *(_victim_model(v, params.victim_appearance) for v in world.victims)]
+              *(_victim_model(v, params.victim_appearance, params.victim_temperature_c)
+                for v in world.victims)]
     models_text = '\n'.join(models)
     return f"""<?xml version="1.0" ?>
 <!-- Generado por usar_worldgen: semilla {params.seed}, intento {world.attempt},
@@ -136,6 +148,13 @@ def world_to_sdf(world: GeneratedWorld) -> str:
     <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
       <render_engine>ogre2</render_engine>
     </plugin>
+
+    <!-- Temperatura ambiente (cámara térmica): suelo, muros y escombros sin temperatura
+         propia. Sin gradiente vertical. -->
+    <atmosphere type="adiabatic">
+      <temperature>{_f(params.ambient_temperature_c + KELVIN)}</temperature>
+      <temperature_gradient>0.0</temperature_gradient>
+    </atmosphere>
 
     <scene>
       <ambient>0.5 0.5 0.5 1</ambient>

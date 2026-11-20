@@ -18,6 +18,10 @@ victim_reach_distance: 1.0      # distancia máx. desde zona alcanzable a la ví
 victim_appearance: orange       # orange (MVP) | dusty (grises "cubiertas de polvo")
 n_low_debris: 0                 # escombros bajos (tablones, losas, bloques); 0 = mundo del MVP
 low_debris_height_range: [0.08, 0.28]  # alturas parecidas a las de una víctima (≈ 0.22 m)
+ambient_temperature_c: 20.0     # suelo, muros y escombros (cámara térmica, Fase 9)
+victim_temperature_c: 34.0      # superficie de una persona vestida (no los 37 °C internos)
+n_warm_debris: 0                # escombros tibios (falsos positivos térmicos); 0 = ninguno
+warm_debris_temperature_range: [28.0, 45.0]  # °C: sol, tuberías, motores
 wall_height: 1.0
 wall_thickness: 0.2
 max_attempts: 50                # reintentos con sub-semilla

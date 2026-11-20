@@ -5,11 +5,14 @@
 
   Árbol de frames:
     base_footprint → base_link → {left_wheel_link, right_wheel_link, caster_link,
-                                  lidar_link, camera_link → camera_optical_frame}
+                                  lidar_link, camera_link → camera_optical_frame,
+                                  [thermal_link → thermal_optical_frame]}
+  La cámara térmica (fase 2) solo se incluye con use_thermal:=true.
 -->
 <robot name="findbot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <xacro:arg name="robot_params" default="$(find usar_description)/config/robot.yaml"/>
+  <xacro:arg name="use_thermal" default="false"/>
   <xacro:property name="p" value="${xacro.load_yaml('$(arg robot_params)')}"/>
   <xacro:property name="ch" value="${p['chassis']}"/>
   <xacro:property name="wh" value="${p['wheels']}"/>
@@ -17,6 +20,7 @@
   <xacro:property name="dd" value="${p['diff_drive']}"/>
   <xacro:property name="ld" value="${p['lidar']}"/>
   <xacro:property name="cam" value="${p['camera']}"/>
+  <xacro:property name="th" value="${p['thermal']}"/>
 
   <!-- ===================== Macros de inercia ===================== -->
   <xacro:macro name="box_inertia" params="m x y z ox:=0">
@@ -231,6 +235,53 @@
       </camera>
     </sensor>
   </gazebo>
+
+  <!-- ===================== Cámara térmica (fase 2) ===================== -->
+  <!-- Gazebo publica la imagen cruda (mono16, 0.01 K por unidad) en /sim/thermal/image_raw;
+       usar_sim_sensors/thermal_camera_sim añade el ruido del MLX90640 y publica /thermal/image
+       en °C. (El sensor térmico de Gazebo no admite <noise>: hace fallar al servidor.) -->
+  <xacro:if value="$(arg use_thermal)">
+    <joint name="thermal_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="thermal_link"/>
+      <origin xyz="${th['x']} ${th['y']} ${th['z']}" rpy="0 ${th['pitch']} 0"/>
+    </joint>
+    <link name="thermal_link">
+      <visual>
+        <geometry><box size="0.01 0.02 0.02"/></geometry>
+        <material name="findbot_black"/>
+      </visual>
+      <xacro:box_inertia m="0.005" x="0.01" y="0.02" z="0.02"/>
+    </link>
+    <joint name="thermal_optical_joint" type="fixed">
+      <parent link="thermal_link"/>
+      <child link="thermal_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi / 2} 0 ${-pi / 2}"/>
+    </joint>
+    <link name="thermal_optical_frame"/>
+
+    <gazebo reference="thermal_link">
+      <sensor name="thermal_camera" type="thermal">
+        <gz_frame_id>thermal_optical_frame</gz_frame_id>
+        <topic>/sim/thermal/image_raw</topic>
+        <update_rate>${th['update_rate']}</update_rate>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <camera>
+          <horizontal_fov>${th['horizontal_fov']}</horizontal_fov>
+          <image>
+            <width>${th['width']}</width>
+            <height>${th['height']}</height>
+            <format>L16</format>
+          </image>
+          <clip>
+            <near>${th['near']}</near>
+            <far>${th['far']}</far>
+          </clip>
+        </camera>
+      </sensor>
+    </gazebo>
+  </xacro:if>
 
   <!-- ===================== Plugins de Gazebo Harmonic ===================== -->
   <gazebo>
