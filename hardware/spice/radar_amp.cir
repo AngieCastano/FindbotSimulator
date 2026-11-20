@@ -1,0 +1,61 @@
+* H2.4 — Amplificador pasabanda de la señal IF del HB100 → ADC_RADAR (GPIO34).
+* Dos etapas inversoras iguales referidas a VREF = 1.65 V (seguidor con el 4.º amplificador).
+* Cada etapa: Rin+Cin en serie (pasa-altos) y Rf||Cf en la realimentación (pasa-bajos).
+.include results/params.inc
+.include models/opamp_rr.lib
+
+V33 v33 0 dc {analog_esp32_io_vdd}
+
+* Referencia de 1.65 V
+Rvt v33 vdiv {analog_vref_r_top}
+Rvb vdiv 0 {analog_vref_r_bottom}
+Cv  vdiv 0 {analog_vref_c}
+Xr  vdiv vref v33 0 vref opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos={analog_opamp_vos_max}
+
+* Señal IF: tono de respiración (0.3 Hz) + tono de movimiento (10 Hz); AC = 1 para el Bode
+Vbr if  mid dc 0 ac 1 sin(0 {analog_radar_test_amplitude} 0.3)
+Vmv mid 0   dc 0 sin(0 {analog_radar_test_amplitude} 10)
+
+* Etapa 1
+Ci1 if  n1 {analog_radar_cin}
+Ri1 n1  i1 {analog_radar_rin}
+X1  vref i1 v33 0 o1 opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos={analog_opamp_vos_max}
+Rf1 o1 i1 {analog_radar_rf}
+Cf1 o1 i1 {analog_radar_cf}
+
+* Etapa 2
+Ci2 o1 n2 {analog_radar_cin}
+Ri2 n2 i2 {analog_radar_rin}
+X2  vref i2 v33 0 o2 opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos={analog_opamp_vos_max}
+Rf2 o2 i2 {analog_radar_rf}
+Cf2 o2 i2 {analog_radar_cf}
+
+* Filtro antialias hacia el ADC
+Ro o2 adc {analog_radar_out_r}
+Co adc 0 {analog_radar_out_c}
+
+.control
+set hcopydevtype=svg
+set color0=white
+set color1=black
+op
+let vq = v(adc)
+echo "RESULT vq $&vq"
+ac dec 100 0.001 10k
+meas ac gain_db max vdb(adc)
+let g3 = gain_db - 3
+meas ac flow  when vdb(adc)=$&g3 rise=1
+meas ac fhigh when vdb(adc)=$&g3 fall=1
+echo "RESULT gain_db $&gain_db"
+echo "RESULT flow $&flow"
+echo "RESULT fhigh $&fhigh"
+hardcopy results/radar_amp_bode.svg vdb(adc) xlog xlabel 'f [Hz]' ylabel 'Ganancia [dB]'
+* Transitorio desde el punto de operación (condensadores ya cargados)
+tran 1m 10
+meas tran tran_max max v(adc) from=2 to=10
+meas tran tran_min min v(adc) from=2 to=10
+echo "RESULT tran_max $&tran_max"
+echo "RESULT tran_min $&tran_min"
+hardcopy results/radar_amp_tran.svg v(adc) xlabel 't [s]' ylabel 'V ADC [V]'
+.endc
+.end

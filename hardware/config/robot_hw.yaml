@@ -88,6 +88,62 @@ power_budget_w:           # típico / pico, en batería (eficiencia buck ~0.88)
   total:       {typ: 11.1, peak: 23.4}
 
 # ---------------------------------------------------------------------------------------------
+# Acondicionamiento analógico (valores verificados en H2 con ngspice: hardware/spice/)
+# ---------------------------------------------------------------------------------------------
+analog:
+  resistor_tolerance: 0.01
+  esp32_io:               # umbrales del ESP32 con VDD = 3.3 V (datasheet, sección DC)
+    vdd: 3.3
+    vil_max: 0.825
+    vih_min: 2.475
+    vabs_max: 3.6
+    adc_bits: 12
+    adc_full_scale_11db: 3.3
+  opamp:                  # MCP6004 (4 amplificadores, rail-to-rail, entrada CMOS)
+    a0: 31623             # 90 dB en lazo abierto
+    gbw: 1.0e6
+    ib: 1.0e-12
+    rin: 1.0e13
+    vos_max: 4.5e-3
+    rout: 50
+  vref:                   # 1.65 V para el radar (divisor + 4.º amplificador del MCP6004 como seguidor)
+    r_top: 100000
+    r_bottom: 100000
+    c: 1.0e-5
+  encoder:
+    pullup: 10000         # a 3V3, caso A: salida Hall de colector abierto
+    cable_c: 1.0e-10
+    input_c: 5.0e-12
+    hall_ron: 20
+    f_max: 1760           # Hz por canal: 9600 rpm del motor × 11 pulsos / 60
+    alt_module_pullup: 10000   # caso B: el módulo trae pull-up a 5 V
+    alt_r_bottom: 15000        # caso B: resistencia a GND (DNP si es caso A)
+  co2:
+    sensor_rs: 1.0e9      # impedancia interna supuesta del TGS4161 (conservador)
+    emf_min: 0.2
+    emf_max: 0.5
+    gain_rf: 20000        # no inversor, ganancia 3
+    gain_rg: 10000
+    out_r: 1000
+    out_c: 1.0e-7
+    adc_attenuation_db: 6 # rango lineal 0.15–1.75 V
+  radar:                  # 2 etapas inversoras iguales referidas a VREF
+    rin: 100000
+    cin: 2.2e-5           # pasa-altos por etapa 0.072 Hz
+    rf: 4.7e6             # ganancia por etapa 47 → total 2209 (66.9 dB)
+    cf: 4.7e-10           # pasa-bajos por etapa 72 Hz
+    out_r: 1000
+    out_c: 1.0e-6
+    sample_rate: 200
+    test_amplitude: 2.5e-4   # V pico por tono en la prueba transitoria (0.3 Hz + 10 Hz)
+  heater:                 # calefactor TGS4161 conmutado por AO3400 en el lado bajo
+    v_supply: 5.0
+    r_heater: 100         # 5 V / 50 mA (250 mW)
+    r_gate: 100
+    r_gate_pulldown: 100000
+    v_gate: 3.3
+
+# ---------------------------------------------------------------------------------------------
 # Geometría (la copia la sesión de simulación al xacro). Posiciones respecto a base_link.
 # ---------------------------------------------------------------------------------------------
 geometry:

@@ -1,0 +1,48 @@
+* H2.2 — Nivel lógico de los encoders Hall hacia el ESP32 (frecuencia máxima por canal).
+* Caso A: salida de colector abierto + pull-up a 3V3 en la PCB (diseño principal).
+* Caso B: el módulo trae pull-up a 5 V → resistencia a GND en la PCB forma un divisor.
+.include results/params.inc
+
+V33 v33 0 dc {analog_esp32_io_vdd}
+V5  v5  0 dc 5.0
+Vctl ctl 0 pulse(0 1 0 10n 10n {0.5/analog_encoder_f_max} {1/analog_encoder_f_max})
+.model hall sw (vt=0.5 vh=0 ron={analog_encoder_hall_ron} roff=1e9)
+
+* Caso A
+Sa  ea 0 ctl 0 hall
+Rpa ea v33 {analog_encoder_pullup}
+Ca  ea 0 {analog_encoder_cable_c+analog_encoder_input_c}
+
+* Caso B
+Sb  eb 0 ctl 0 hall
+Rmb eb v5 {analog_encoder_alt_module_pullup}
+Rgb eb 0 {analog_encoder_alt_r_bottom}
+Cb  eb 0 {analog_encoder_cable_c+analog_encoder_input_c}
+
+.control
+set hcopydevtype=svg
+set color0=white
+set color1=black
+tran 20n 2m
+* Con ctl = 1 el Hall conduce (nivel bajo); con ctl = 0 queda abierto (nivel alto)
+meas tran a_vhigh max v(ea) from=0.1m to=2m
+meas tran a_vlow  min v(ea) from=0.1m to=2m
+meas tran b_vhigh max v(eb) from=0.1m to=2m
+meas tran b_vlow  min v(eb) from=0.1m to=2m
+let a10 = 0.1*a_vhigh
+let a90 = 0.9*a_vhigh
+let b10 = 0.1*b_vhigh
+let b90 = 0.9*b_vhigh
+meas tran a_tr trig v(ea) val=$&a10 rise=2 targ v(ea) val=$&a90 rise=2
+meas tran b_tr trig v(eb) val=$&b10 rise=2 targ v(eb) val=$&b90 rise=2
+let a_trise_us = a_tr*1e6
+let b_trise_us = b_tr*1e6
+echo "RESULT a_vhigh $&a_vhigh"
+echo "RESULT a_vlow $&a_vlow"
+echo "RESULT a_trise_us $&a_trise_us"
+echo "RESULT b_vhigh $&b_vhigh"
+echo "RESULT b_vlow $&b_vlow"
+echo "RESULT b_trise_us $&b_trise_us"
+hardcopy results/encoder_level.svg v(ea) v(eb) xlabel 't [s]' ylabel 'V GPIO [V]'
+.endc
+.end

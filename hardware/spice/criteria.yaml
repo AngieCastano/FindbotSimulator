@@ -1,0 +1,35 @@
+# Criterios de aceptación de la Fase H2. check_spice.py compara cada "RESULT <nombre> <valor>"
+# que imprime ngspice contra estos límites [min, max] (null = sin límite).
+
+battery_divider:
+  vadc_max_wc: [null, 2.45]   # V en el ADC con 8.4 V y tolerancias en contra (rango lineal 11 dB)
+  vadc_min_wc: [0.15, null]   # V en el ADC con 6.0 V
+  res_mv:      [null, 10.0]   # resolución en tensión de batería por LSB
+  t99_ms:      [null, 5.0]    # asentamiento al 99 % tras encender
+
+encoder_level:
+  a_vhigh:    [2.5, 3.6]      # V alto ≥ VIH (2.475) y ≤ máximo absoluto
+  a_vlow:     [null, 0.8]     # V bajo ≤ VIL (0.825)
+  a_trise_us: [null, 5.0]
+  b_vhigh:    [2.5, 3.6]
+  b_vlow:     [null, 0.8]
+  b_trise_us: [null, 5.0]
+
+co2_buffer:
+  err_in_mv: [null, 2.0]      # error de carga sobre la FEM (Ib × Rs + Rin)
+  gain:      [2.97, 3.03]     # ganancia 3 ± 1 %
+  out_min:   [0.15, null]     # dentro del rango lineal del ADC a 6 dB, con offset en contra
+  out_max:   [null, 1.75]
+
+radar_amp:
+  vq:       [1.60, 1.70]      # reposo de la salida en VREF
+  gain_db:  [63.0, 69.0]      # 2000 ± 3 dB
+  flow:     [0.08, 0.15]      # Hz, corte inferior (−3 dB)
+  fhigh:    [35.0, 70.0]      # Hz, corte superior (−3 dB)
+  tran_max: [null, 3.25]      # sin saturar con 0.5 mV pico de entrada
+  tran_min: [0.05, null]
+
+heater_switch:
+  v_heater: [4.8, 5.2]        # tensión en el calefactor (5 V ± 0.2 V)
+  p_fet_mw: [null, 50.0]
+  i_off_ua: [null, 1.0]       # fuga con el calefactor apagado

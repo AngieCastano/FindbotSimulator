@@ -63,13 +63,21 @@ Analógicos solo en ADC1 (ADC2 falla con WiFi). Libres: GPIO35 (ADC1), GPIO5, GP
 - Presupuesto en batería: **típico ≈ 11 W, pico ≈ 23 W** → autonomía estimada ~1,5 h.
   Detalle por consumidor en `robot_hw.yaml → power_budget_w`.
 
-## Acondicionamiento analógico (se verifica en H2 con ngspice)
-- **TGS4161**: la salida (FEM de 0,2 a 0,5 V) tiene una impedancia altísima → seguidor MCP6004
-  (entrada CMOS) y ganancia a definir en H2. Calefactor 5 V ±0,2 V, ~50 mA, conmutado por GPIO4.
-  Necesita ~2 h de precalentamiento la primera vez y minutos en cada arranque.
-- **HB100**: la señal IF es de µV a mV → 2 etapas MCP6004 (ganancia total ~2000), pasabanda
-  0,1–50 Hz (respiración y movimiento), polarizada a 1,65 V. Solo es útil con el robot quieto.
-- **Encoders**: Vcc 5 V; salida a 3,3 V por pull-up a 3V3 (o divisor si el módulo trae pull-up a 5 V).
+## Acondicionamiento analógico (verificado en H2 con ngspice — `hardware/spice/`)
+Valores en `robot_hw.yaml → analog`. MCP6004 (4 amplificadores): CO₂, radar etapa 1, radar etapa 2 y VREF.
+- **TGS4161**: FEM de 0,2–0,5 V con impedancia altísima → no inversor MCP6004, **ganancia 3**
+  (Rf 20 kΩ / Rg 10 kΩ), RC 1 kΩ/100 nF, ADC a 6 dB. Salida 0,58–1,51 V en el peor caso de offset;
+  error de carga 1 mV (con Rs supuesta de 1 GΩ). El offset del amplificador (±4,5 mV) se elimina
+  con la calibración de línea base en aire limpio. Calefactor 5 V/50 mA conmutado por AO3400 (GPIO4):
+  4,998 V en el calefactor, 0,1 mW en el MOSFET. Precalentamiento ~2 h la primera vez.
+- **HB100**: 2 etapas inversoras iguales referidas a VREF 1,65 V (Rin 100 kΩ + Cin 22 µF,
+  Rf 4,7 MΩ ∥ Cf 470 pF) → **66,8 dB**, banda de −3 dB **0,11–43 Hz**, RC 1 kΩ/1 µF hacia el ADC.
+  Entrada máxima sin saturar ≈ 0,7 mV pico. Solo es útil con el robot quieto.
+- **Batería**: 2,30 V en el ADC en el peor caso (8,4 V, ±1 %), resolución 3 mV de batería por LSB,
+  asentamiento al 99 % en 3,4 ms.
+- **Encoders**: caso A (colector abierto + 10 kΩ a 3V3): 0,007/3,3 V, subida 2,3 µs a 1,76 kHz.
+  Caso B (módulo con pull-up a 5 V): poblar 15 kΩ a GND → 3,0 V alto. **Medir el módulo real
+  antes de soldar** (si su pull-up no es de 10 kΩ, recalcular en `robot_hw.yaml` y volver a simular).
 
 ## Geometría (la copia el xacro — fuente: `robot_hw.yaml → geometry`)
 `base_link` = punto medio del eje de ruedas (0,0325 m sobre el suelo). x adelante, z arriba.
@@ -94,6 +102,9 @@ y `/odom` va de `odom` a `base_footprint`, igual que en el xacro.
 
 ## Herramientas y comandos
 - Revisar pines y geometría: `python3 hardware/scripts/check_pins.py`
+- Simulaciones SPICE + criterios: `hardware/spice/run_spice.sh` → `hardware/spice/results/summary.txt`
+  y gráficos `.svg`. Los netlists leen `results/params.inc`, generado desde `robot_hw.yaml`;
+  los modelos de comportamiento (MCP6004, AO3400) están en `spice/models/`.
 - PlatformIO Core 6.2 (`~/.local/bin/pio`), KiCad 10 (`kicad-cli`), ngspice 42, Wokwi 4.1 (licencia en VS Code).
 
 ## Fases de hardware

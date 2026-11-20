@@ -1,0 +1,26 @@
+* H2.5 — Calefactor del TGS4161 conmutado en el lado bajo por un AO3400 (GPIO4 = CO2_HEATER_EN).
+.include results/params.inc
+.include models/ao3400.lib
+
+V5  v5 0 dc {analog_heater_v_supply}
+Rh  v5 d {analog_heater_r_heater}
+M1  d g 0 0 ao3400 w=1u l=1u
+Vg  gin 0 dc {analog_heater_v_gate}
+Rg  gin g {analog_heater_r_gate}
+Rpd g 0 {analog_heater_r_gate_pulldown}
+
+.control
+* Encendido (GPIO en alto)
+op
+let v_heater = v(v5) - v(d)
+let i_h = -i(V5)
+let p_fet_mw = 1000*v(d)*i_h
+echo "RESULT v_heater $&v_heater"
+echo "RESULT p_fet_mw $&p_fet_mw"
+* Apagado (GPIO en bajo)
+alter Vg dc = 0
+op
+let i_off_ua = -1e6*i(V5)
+echo "RESULT i_off_ua $&i_off_ua"
+.endc
+.end

@@ -1,0 +1,146 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1"
+  width="100%" height="100%" viewBox="0 0 1024 768"
+  style="fill: none; font-family: Helvetica;
+ font: Helvetica;
+">
+
+<!-- Creator: NGspice -->
+
+<rect x="0" y="0" width="1024" height="768" fill="white" stroke="none"/>
+<text stroke="none" fill="black" font-size="16" x="358" y="752">
+VBAT [V]
+</text>
+<text transform="rotate(-90, 20, 429)"  stroke="none" fill="black" font-size="16" x="20" y="429">
+V ADC [V]
+</text>
+<text stroke="none" fill="black" font-size="16" x="10" y="16">
+dc1: * h2.1 — divisor de batería vbat → adc_vbat (gpio36), con filtro rc.
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="70" y="728">
+5.8
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M147 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="132" y="728">
+6.0
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M209 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="194" y="728">
+6.2
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M271 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="256" y="728">
+6.4
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M333 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="318" y="728">
+6.6
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M395 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="380" y="728">
+6.8
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M457 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="442" y="728">
+7.0
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M519 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="504" y="728">
+7.2
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M581 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="566" y="728">
+7.4
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M643 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="628" y="728">
+7.6
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M705 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="690" y="728">
+7.8
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M767 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="752" y="728">
+8.0
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M829 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="814" y="728">
+8.2
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M891 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="876" y="728">
+8.4
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M953 704l0 -639"/>
+<text stroke="none" fill="black" font-size="16" x="938" y="728">
+8.6
+</text>
+<text stroke="none" fill="black" font-size="16" x="614" y="752">
+V
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 704l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="712">
+1.50
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 633l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="641">
+1.60
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 562l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="570">
+1.70
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 491l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="499">
+1.80
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 420l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="428">
+1.90
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 349l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="357">
+2.00
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 278l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="286">
+2.10
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 207l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="215">
+2.20
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 136l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="144">
+2.30
+</text>
+<path stroke="black" stroke-dasharray="1,2" d="M85 65l868 0"/>
+<text stroke="none" fill="black" font-size="16" x="43" y="73">
+2.40
+</text>
+<text stroke="none" fill="black" font-size="16" x="10" y="32">
+V
+</text>
+<path stroke="red" d="M434 23l43 0"/>
+<text stroke="none" fill="black" font-size="16" x="487" y="32">
+v(an)
+</text>
+<path stroke="red" d="M116 637l15 -10 16 -9 15 -10 16 -10 15 -9 16 -10 15 -9 16 -10 15 -10 16 -9 15 -10 16 -9 15 -10 16 -9 15 -10 16 -10 15 -9 16 -10 15 -9 16 -10 15 -10 16 -9 15 -10 16 -9 15 -10 16 -10 15 -9 16 -10 15 -9 16 -10 15 -10 16 -9"/>
+<path stroke="red" d="M612 330l15 -10 16 -9 15 -10 16 -10 15 -9 16 -10 15 -9 16 -10 15 -10 16 -9 15 -10 16 -9 15 -10 16 -10 15 -9 16 -10 15 -9 16 -10 15 -9 16 -10"/>
+<path stroke="blue" d="M85 23l43 0"/>
+<text stroke="none" fill="black" font-size="16" x="138" y="32">
+v(ah)
+</text>
+<path stroke="blue" d="M116 620l15 -9 16 -10 15 -10 16 -10 15 -9 16 -10 15 -10 16 -10 15 -9 16 -10 15 -10 16 -10 15 -9 16 -10 15 -10 16 -10 15 -9 16 -10 15 -10 16 -9 15 -10 16 -10 15 -10 16 -9 15 -10 16 -10 15 -10 16 -9 15 -10 16 -10 15 -10 16 -9"/>
+<path stroke="blue" d="M612 309l15 -10 16 -10 15 -9 16 -10 15 -10 16 -10 15 -9 16 -10 15 -10 16 -10 15 -9 16 -10 15 -10 16 -10 15 -9 16 -10 15 -10 16 -10 15 -9 16 -10"/>
+<path stroke="#FFA500" d="M434 39l43 0"/>
+<text stroke="none" fill="black" font-size="16" x="487" y="48">
+v(al)
+</text>
+<path stroke="#FFA500" d="M116 653l15 -9 16 -10 15 -9 16 -10 15 -9 16 -9 15 -10 16 -9 15 -10 16 -9 15 -10 16 -9 15 -10 16 -9 15 -10 16 -9 15 -9 16 -10 15 -9 16 -10 15 -9 16 -10 15 -9 16 -10 15 -9 16 -10 15 -9 16 -9 15 -10 16 -9 15 -10 16 -9 15 -10"/>
+<path stroke="#FFA500" d="M627 341l16 -9 15 -10 16 -9 15 -10 16 -9 15 -9 16 -10 15 -9 16 -10 15 -9 16 -10 15 -9 16 -10 15 -9 16 -10 15 -9 16 -9 15 -10 16 -9"/>
+</svg>

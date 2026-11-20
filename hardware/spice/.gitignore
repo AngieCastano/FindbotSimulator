@@ -1,0 +1,3 @@
+# Generados por check_spice.py (se regeneran en cada corrida)
+results/*.log
+results/params.inc

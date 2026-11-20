@@ -1,0 +1,4 @@
+* Modelo nivel 1 aproximado del MOSFET N AO3400 (SOT-23, 30 V, 5.7 A).
+* Ajustado a la hoja de datos: Vth ≈ 1.05 V y Rds(on) ≈ 40 mΩ con Vgs = 3.3 V
+* (Rds ≈ 1 / (kp·(Vgs − Vth)) con W/L = 1).
+.model ao3400 nmos (level=1 vto=1.05 kp=11.1 lambda=0.01)

@@ -1,0 +1,44 @@
+* H2.1 — Divisor de batería VBAT → ADC_VBAT (GPIO36), con filtro RC.
+* Tres copias: nominal, peor caso alto (R_top −tol, R_bottom +tol) y peor caso bajo.
+.include results/params.inc
+
+Vbat vb 0 dc {battery_v_full}
+
+R1n vb an {battery_divider_r_top}
+R2n an 0 {battery_divider_r_bottom}
+Cn  an 0 {battery_divider_c_filter}
+
+R1h vb ah {battery_divider_r_top*(1-analog_resistor_tolerance)}
+R2h ah 0 {battery_divider_r_bottom*(1+analog_resistor_tolerance)}
+Ch  ah 0 {battery_divider_c_filter}
+
+R1l vb al {battery_divider_r_top*(1+analog_resistor_tolerance)}
+R2l al 0 {battery_divider_r_bottom*(1-analog_resistor_tolerance)}
+Cl  al 0 {battery_divider_c_filter}
+
+.control
+set hcopydevtype=svg
+set color0=white
+set color1=black
+* Barrido DC en todo el rango útil de la batería
+dc Vbat 5.9 8.5 0.05
+meas dc vadc_max_wc find v(ah) at=8.4
+meas dc vadc_min_wc find v(al) at=6.0
+meas dc vadc_nom_full find v(an) at=8.4
+let ratio = vadc_nom_full/8.4
+let res_mv = 1000*(3.3/4096)/ratio
+echo "RESULT vadc_max_wc $&vadc_max_wc"
+echo "RESULT vadc_min_wc $&vadc_min_wc"
+echo "RESULT res_mv $&res_mv"
+hardcopy results/battery_divider_dc.svg v(an) v(ah) v(al) xlabel 'VBAT [V]' ylabel 'V ADC [V]'
+* Encendido: condensador descargado, VBAT = 8.4 V
+* (v99 se calcula antes: los vectores del barrido DC no existen tras un análisis nuevo)
+let v99 = 0.99*vadc_nom_full
+set v99s = "$&v99"
+tran 10u 10m uic
+meas tran t99 when v(an)=$v99s rise=1
+let t99_ms = t99*1000
+echo "RESULT t99_ms $&t99_ms"
+hardcopy results/battery_divider_tran.svg v(an) xlabel 't [s]' ylabel 'V ADC [V]'
+.endc
+.end

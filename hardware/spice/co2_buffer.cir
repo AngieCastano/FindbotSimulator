@@ -1,0 +1,49 @@
+* H2.3 — Amplificador no inversor del TGS4161 → ADC_CO2 (GPIO39).
+* El sensor es una fuente de FEM con impedancia interna muy alta (sensor_rs).
+* Tres copias del amplificador: offset 0, +vos_max y −vos_max.
+.include results/params.inc
+.include models/opamp_rr.lib
+
+V33  v33 0 dc {analog_esp32_io_vdd}
+Vemf emf 0 dc 0.35
+
+Rs0 emf in0 {analog_co2_sensor_rs}
+X0  in0 fb0 v33 0 o0 opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos=0
+Rf0 o0 fb0 {analog_co2_gain_rf}
+Rg0 fb0 0 {analog_co2_gain_rg}
+Ro0 o0 adc0 {analog_co2_out_r}
+Co0 adc0 0 {analog_co2_out_c}
+
+Rsp emf inp {analog_co2_sensor_rs}
+Xp  inp fbp v33 0 op opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos={analog_opamp_vos_max}
+Rfp op fbp {analog_co2_gain_rf}
+Rgp fbp 0 {analog_co2_gain_rg}
+Rop op adcp {analog_co2_out_r}
+Cop adcp 0 {analog_co2_out_c}
+
+Rsn emf inn {analog_co2_sensor_rs}
+Xn  inn fbn v33 0 on opamp_rr a0={analog_opamp_a0} gbw={analog_opamp_gbw} ib={analog_opamp_ib} rin={analog_opamp_rin} rout={analog_opamp_rout} vos={-analog_opamp_vos_max}
+Rfn on fbn {analog_co2_gain_rf}
+Rgn fbn 0 {analog_co2_gain_rg}
+Ron on adcn {analog_co2_out_r}
+Con adcn 0 {analog_co2_out_c}
+
+.control
+set hcopydevtype=svg
+set color0=white
+set color1=black
+dc Vemf 0.2 0.5 0.01
+meas dc vin_mid find v(in0) at=0.35
+let err_in_mv = 1000*(0.35 - vin_mid)
+meas dc vlo find v(adc0) at=0.2
+meas dc vhi find v(adc0) at=0.5
+let gain = (vhi - vlo)/0.3
+meas dc out_min find v(adcn) at=0.2
+meas dc out_max find v(adcp) at=0.5
+echo "RESULT err_in_mv $&err_in_mv"
+echo "RESULT gain $&gain"
+echo "RESULT out_min $&out_min"
+echo "RESULT out_max $&out_max"
+hardcopy results/co2_buffer_dc.svg v(adc0) v(adcp) v(adcn) xlabel 'FEM TGS4161 [V]' ylabel 'V ADC [V]'
+.endc
+.end
