@@ -53,12 +53,20 @@ void pcnt_setup(PcntWheel& w, int pin_a, int pin_b) {
   c.neg_mode = PCNT_COUNT_DEC;
   pcnt_unit_config(&c);
 
+  // Pull-up interno además del externo de 10 kΩ de la placa (inocuo; necesario en Wokwi)
+  gpio_pullup_en(static_cast<gpio_num_t>(pin_a));
+  gpio_pullup_en(static_cast<gpio_num_t>(pin_b));
   pcnt_set_filter_value(w.unit, cfg::ENCODER_GLITCH_FILTER);
   pcnt_filter_enable(w.unit);
   pcnt_event_enable(w.unit, PCNT_EVT_H_LIM);
   pcnt_event_enable(w.unit, PCNT_EVT_L_LIM);
   pcnt_counter_pause(w.unit);
   pcnt_counter_clear(w.unit);
+}
+
+// El servicio de interrupciones se instala DESPUÉS de configurar las unidades: en ESP-IDF 4.4
+// pcnt_isr_service_install() falla ("PCNT driver error") si el driver aún no tiene unidades.
+void pcnt_start(PcntWheel& w) {
   pcnt_isr_handler_add(w.unit, pcnt_overflow_isr, &w);
   pcnt_counter_resume(w.unit);
 }
@@ -97,8 +105,8 @@ void IRAM_ATTR isr_edge(void* arg) {
 }
 
 void isr_setup(IsrWheel& w) {
-  pinMode(w.pin_a, INPUT);
-  pinMode(w.pin_b, INPUT);
+  pinMode(w.pin_a, INPUT_PULLUP);
+  pinMode(w.pin_b, INPUT_PULLUP);
   w.state = static_cast<uint8_t>((digitalRead(w.pin_a) << 1) | digitalRead(w.pin_b));
   attachInterruptArg(digitalPinToInterrupt(w.pin_a), isr_edge, &w, CHANGE);
   attachInterruptArg(digitalPinToInterrupt(w.pin_b), isr_edge, &w, CHANGE);
@@ -117,9 +125,13 @@ int32_t isr_delta(IsrWheel& w) {
 
 void Encoders::begin() {
   if (cfg::ENCODER_USE_PCNT) {
-    pcnt_isr_service_install(0);
     pcnt_setup(g_pcnt[0], cfg::PIN_ENC_L_A, cfg::PIN_ENC_L_B);
     pcnt_setup(g_pcnt[1], cfg::PIN_ENC_R_A, cfg::PIN_ENC_R_B);
+    if (pcnt_isr_service_install(0) != ESP_OK) {
+      Serial.println("# ERROR: no se pudo instalar la ISR del PCNT (desbordes sin contar)");
+    }
+    pcnt_start(g_pcnt[0]);
+    pcnt_start(g_pcnt[1]);
   } else {
     isr_setup(g_isr[0]);
     isr_setup(g_isr[1]);

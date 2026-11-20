@@ -11,6 +11,9 @@
 //   h <0|1>                          calefactor del TGS4161
 //   c                                calibrar línea base de CO2 (aire limpio)
 //   r                                reiniciar odometría
+//   ?                                línea de estado (IMU, batería, motores, odometría)
+// Avisos de cambio de estado: "# motores ON pwm=… Hz", "# vigilante: sin mando, motores a 0",
+// "# motores OFF: bateria critica", "# bateria recuperada".
 #include <Arduino.h>
 
 #include "analog_inputs.h"
@@ -65,15 +68,35 @@ Periodic t_radar{cfg::PERIOD_RADAR_US};
 Periodic t_slow{cfg::PERIOD_SLOW_US};
 Periodic t_telemetry{cfg::PERIOD_TELEMETRY_US};
 
+// Estado de la tracción: cada cambio se avisa por serial (lo usan las pruebas de Wokwi en la H5).
+enum class DriveState { kIdle, kDriving, kStale, kCritical };
+DriveState drive_state = DriveState::kIdle;
+bool had_command = false;
+
+void set_drive_state(DriveState next) {
+  if (next == drive_state) return;
+  if (drive_state == DriveState::kCritical) Serial.println("# bateria recuperada");
+  switch (next) {
+    case DriveState::kCritical: Serial.println("# motores OFF: bateria critica"); break;
+    case DriveState::kStale: Serial.println("# vigilante: sin mando, motores a 0"); break;
+    case DriveState::kDriving: Serial.printf("# motores ON pwm=%lu Hz\n", motors.pwm_frequency()); break;
+    case DriveState::kIdle: break;
+  }
+  drive_state = next;
+}
+
 core::Twist2D cmd{0.0f, 0.0f};
 ImuSample imu_sample{};
 float co2_adc = 0.0f;
 char line[64];
 size_t line_len = 0;
+int32_t ticks_left = 0, ticks_right = 0;  // cuentas acumuladas (diagnóstico, mando "?")
 
 void control_step(float dt) {
   int32_t dl = 0, dr = 0;
   encoders.read_deltas(dl, dr);
+  ticks_left += dl;
+  ticks_right += dr;
   odom.update(dl, dr, dt);
 
   const bool critical = battery.level() == core::BatteryLevel::kCritical;
@@ -83,11 +106,19 @@ void control_step(float dt) {
 
   if (critical) {
     // Batería crítica: motores apagados (STBY en bajo) hasta que se recupere
+    set_drive_state(DriveState::kCritical);
     limiter.reset();
     pid_left.reset();
     pid_right.reset();
     motors.enable(false);
     return;
+  }
+  if (stale) {
+    set_drive_state(had_command ? DriveState::kStale : DriveState::kIdle);
+  } else if (target.v == 0.0f && target.w == 0.0f) {
+    set_drive_state(DriveState::kIdle);
+  } else {
+    set_drive_state(DriveState::kDriving);
   }
   if (limited.v == 0.0f && limited.w == 0.0f) {
     pid_left.reset();
@@ -119,7 +150,15 @@ void handle_command(const char* text) {
       if (sscanf(text + 1, "%f %f", &a, &b) == 2) {
         cmd = {a, b};
         watchdog.feed(millis());
+        had_command = true;
       }
+      break;
+    case '?':
+      Serial.printf("# estado imu_gz=%.2f bat=%.2f nivel=%d motores=%d x=%.3f theta=%.3f "
+                    "enc_l=%ld enc_r=%ld\n",
+                    imu_sample.gz, battery.voltage(), static_cast<int>(battery.level()),
+                    motors.enabled() ? 1 : 0, odom.x(), odom.theta(),
+                    static_cast<long>(ticks_left), static_cast<long>(ticks_right));
       break;
     case 's':
       cmd = {0.0f, 0.0f};
@@ -179,7 +218,7 @@ void setup() {
   for (int i = 0; i < 5; ++i) slow_step();  // batería válida antes de mover motores
   const bool imu_ok = imu.begin();
   if (imu_ok) imu.calibrate_gyro(cfg::IMU_CALIB_SAMPLES);
-  Serial.printf("# findbot firmware H4 | IMU %s | bateria %.2f V\n", imu_ok ? "ok" : "NO RESPONDE",
+  Serial.printf("# findbot firmware | IMU %s | bateria %.2f V\n", imu_ok ? "ok" : "NO RESPONDE",
                 battery.voltage());
   Serial.println("# T,t_ms,x,y,theta,v,w,wl,wr,ax,ay,az,gx,gy,gz,vbat,bat_level,bat_pct,"
                  "co2_emf,co2_ppm,radar_rms,heater,cmd_active");

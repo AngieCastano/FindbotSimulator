@@ -1,0 +1,5 @@
+# Generado por gen_wokwi.py — firmware compilado por PlatformIO (entorno esp32)
+[wokwi]
+version = 1
+firmware = '../firmware/.pio/build/esp32/firmware.bin'
+elf = '../firmware/.pio/build/esp32/firmware.elf'

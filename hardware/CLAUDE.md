@@ -129,6 +129,32 @@ y `/odom` va de `odom` a `base_footprint`, igual que en el xacro.
 - Por ajustar con el robot real: sentido de motores y encoders (`firmware.*_invert_*`),
   zona muerta, ganancias del PID y pendiente del TGS4161.
 
+## Simulación Wokwi (H5)
+- `hardware/wokwi/gen_wokwi.py` genera `diagram.json`, `scenario_h5.yaml` y `wokwi.toml` desde
+  `robot_hw.yaml` (no editarlos a mano). `run_wokwi.sh` compila, regenera, hace `lint` y corre la
+  prueba automática con `wokwi-cli` (registro serial en `wokwi/out/serial.log`).
+- Equivalencias: potenciómetros = tensión en el pin del ADC (batería, CO₂, radar); KY-040 =
+  encoders (cuadratura real, se giran con el ratón/teclado); analizador lógico = entradas del
+  TB6612; LED naranja = calefactor. El TB6612 y los motores no existen en Wokwi.
+- La prueba automática (`diagram_ci.json` + `scenario_h5.yaml`, 111 pasos) cubre: arranque con
+  IMU, calefactor, PWM a 20 kHz y sentido de giro, parada del vigilante, giro de la IMU (gz),
+  encoders y parada por batería crítica. Como el KY-040 no se puede automatizar, en
+  `diagram_ci.json` cada encoder son 2 botones sin rebote que el escenario presiona en orden de
+  cuadratura (5 ciclos → `enc_l=20 enc_r=-20`, con la inversión del YAML). `diagram.json`
+  conserva las perillas KY-040 para probar a mano en VS Code.
+- Claude corre la prueba con `bash -ic 'hardware/wokwi/run_wokwi.sh'` (el token está en `~/.bashrc`).
+- Corrección encontrada en H5: la ISR de desbordes del PCNT debe instalarse DESPUÉS de configurar
+  las unidades (si no, la odometría se corrompe tras ~30 000 cuentas).
+- Limitación conocida de Wokwi: su ADC es lineal 0–3,3 V e ignora la atenuación, mientras que
+  `analogReadMilliVolts()` aplica la curva de calibración real → en Wokwi la batería lee ~11 % de
+  más (7,4 V → 8,25 V) y el CO₂ (6 dB) de menos. No se corrige en el firmware; la lectura real se
+  valida con multímetro en el robot.
+- `wokwi-cli` a veces pega en `out/serial.log` la línea siguiente a un texto esperado por el
+  escenario (artefacto del registro, no del firmware).
+- Instalar `wokwi-cli` (binario estático, sin tocar el perfil del shell):
+  `mkdir -p ~/.wokwi/bin && curl -fsSL -o ~/.wokwi/bin/wokwi-cli https://github.com/wokwi/wokwi-cli/releases/latest/download/wokwi-cli-linuxstatic-x64 && chmod +x ~/.wokwi/bin/wokwi-cli && ln -sf ~/.wokwi/bin/wokwi-cli ~/.local/bin/wokwi-cli`
+  y exportar `WOKWI_CLI_TOKEN` (token de https://wokwi.com/dashboard/ci; es secreto, no se versiona).
+
 ## Esquemático (H3) — placa base con módulos
 - **`gen_schematic.py` es la fuente**: los cambios hechos a mano en KiCad se pierden al regenerar.
   Para cambiar algo, edita `robot_hw.yaml` (valores, pines) o el generador (componentes) y corre `build.sh`.

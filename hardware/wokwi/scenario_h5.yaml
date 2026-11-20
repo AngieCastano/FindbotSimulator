@@ -1,0 +1,287 @@
+# Generado por gen_wokwi.py desde hardware/config/robot_hw.yaml — no editar.
+# Ejecutar: hardware/wokwi/run_wokwi.sh
+name: findbot H5 — firmware base en Wokwi
+version: 1
+author: gen_wokwi.py
+steps:
+- wait-serial: IMU ok
+- wait-serial: '# T,t_ms'
+- write-serial: 'h 1
+
+    '
+- delay: 100ms
+- expect-pin:
+    part-id: esp
+    name: D4
+    value: 1
+- write-serial: 'v 0.2 0
+
+    '
+- wait-serial: '# motores ON pwm=20000 Hz'
+- delay: 100ms
+- expect-pin:
+    part-id: esp
+    name: D13
+    value: 1
+- expect-pin:
+    part-id: esp
+    name: D27
+    value: 1
+- expect-pin:
+    part-id: esp
+    name: D14
+    value: 0
+- expect-pin:
+    part-id: esp
+    name: D33
+    value: 0
+- expect-pin:
+    part-id: esp
+    name: D32
+    value: 1
+- wait-serial: '# vigilante: sin mando, motores a 0'
+- delay: 800ms
+- expect-pin:
+    part-id: esp
+    name: D27
+    value: 0
+- expect-pin:
+    part-id: esp
+    name: D14
+    value: 0
+- expect-pin:
+    part-id: esp
+    name: D33
+    value: 0
+- expect-pin:
+    part-id: esp
+    name: D32
+    value: 0
+- set-control:
+    part-id: imu
+    name: rotationZ
+    value: 90.0
+- delay: 300ms
+- write-serial: '?
+
+    '
+- wait-serial: imu_gz=1.57
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_l_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_l_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 1
+- delay: 20ms
+- set-control:
+    part-id: btn_r_a
+    name: pressed
+    value: 0
+- delay: 20ms
+- set-control:
+    part-id: btn_r_b
+    name: pressed
+    value: 0
+- delay: 20ms
+- delay: 100ms
+- write-serial: '?
+
+    '
+- wait-serial: enc_l=20 enc_r=-20
+- set-control:
+    part-id: pot_bat
+    name: position
+    value: 0.426
+- wait-serial: '# motores OFF: bateria critica'
+- expect-pin:
+    part-id: esp
+    name: D13
+    value: 0
+- set-control:
+    part-id: pot_bat
+    name: position
+    value: 0.606
+- wait-serial: '# bateria recuperada'

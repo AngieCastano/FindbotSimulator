@@ -17,7 +17,8 @@ void Motors::begin() {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
   }
-  ledcSetup(kChLeft, cfg::MOTOR_PWM_FREQ, cfg::MOTOR_PWM_BITS);
+  // ledcSetup devuelve la frecuencia obtenida con los divisores del reloj (0 si es imposible)
+  pwm_hz_ = static_cast<unsigned long>(ledcSetup(kChLeft, cfg::MOTOR_PWM_FREQ, cfg::MOTOR_PWM_BITS) + 0.5);
   ledcSetup(kChRight, cfg::MOTOR_PWM_FREQ, cfg::MOTOR_PWM_BITS);
   ledcAttachPin(cfg::PIN_MOT_L_PWM, kChLeft);
   ledcAttachPin(cfg::PIN_MOT_R_PWM, kChRight);
