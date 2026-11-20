@@ -32,12 +32,18 @@ python3 gen_wokwi.py >/dev/null
 # 1) ESP32 simulado: su serial queda en un pseudo-terminal ($TMP/tty). La traza del analizador
 #    lógico (STBY, IN1/IN2...) se guarda al terminar la simulación.
 socat PTY,link="$TMP/tty",raw,echo=0 \
-  EXEC:"wokwi-cli -q --interactive --timeout 90000 --timeout-exit-code 0 --vcd-file $PWD/$OUT/e2e.vcd microros" \
+  EXEC:"wokwi-cli -q --interactive --timeout 180000 --timeout-exit-code 0 --vcd-file $PWD/$OUT/e2e.vcd microros" \
   2>"$OUT/socat.log" &
 SOCAT_PID=$!
 for _ in $(seq 50); do [ -e "$TMP/tty" ] && break; sleep 0.2; done
 PTY=$(readlink -f "$TMP/tty")
 echo "ESP32 simulado en $PTY"
+sleep 10
+if ! kill -0 "$SOCAT_PID" 2>/dev/null; then
+  # wokwi-cli terminó antes de tiempo (p. ej. cuota mensual de CI del plan gratuito agotada)
+  echo "La simulación de Wokwi no arrancó:"; grep -v '^$' "$OUT/socat.log" | head -3
+  exit 3
+fi
 
 # 2) Agente micro-ROS sobre ese puerto. Un pseudo-terminal del host no existe dentro del espacio
 #    devpts del contenedor (--device da EIO): se monta /dev/pts del host y se permiten solo los
@@ -50,7 +56,7 @@ docker run -d --rm --name "$AGENT" --net=host --ipc=host -e ROS_DOMAIN_ID="$DOMA
 docker run --rm --net=host --ipc=host -e ROS_DOMAIN_ID="$DOMAIN" --entrypoint bash "$IMAGE" -c '
   source /opt/ros/jazzy/setup.bash
   echo "== esperando al nodo findbot_esp32"
-  timeout 180 bash -c "until [ \$(ros2 topic list 2>/dev/null | grep -cE \"^/(odom|tf|joint_states|imu/data_raw|battery_state|cmd_vel)\$\") -eq 6 ]; do sleep 1; done" || { echo "SIN_TOPICOS"; exit 1; }
+  timeout 300 bash -c "until [ \$(ros2 topic list 2>/dev/null | grep -cE \"^/(odom|tf|joint_states|imu/data_raw|battery_state|cmd_vel)\$\") -eq 6 ]; do sleep 1; done" || { echo "SIN_TOPICOS"; exit 1; }
   echo "== ros2 topic list -t"; ros2 topic list -t
   echo "== /odom";          timeout 20 ros2 topic echo --once /odom --field header
   timeout 20 ros2 topic echo --once /odom --field child_frame_id

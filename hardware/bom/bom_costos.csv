@@ -1,0 +1,56 @@
+Grupo,Ref,Descripción,Valor,Cant,USD unit,USD subtotal,COP subtotal,Fase
+Placa base,C1,Electrolítico 470 µF 16 V,470uF/16V,1,0.25,0.25,1000.0,MVP
+Placa base,"C2,C3",Electrolítico 100 µF 10 V,100uF/10V,2,0.12,0.24,1000.0,MVP
+Placa base,"C4,C5,C7,C8,C15",Cerámico 100 nF,100n,5,0.05,0.25,1000.0,MVP
+Placa base,C6,Electrolítico 100 µF 16 V,100uF/16V,1,0.12,0.12,500.0,MVP
+Placa base,C9,MLCC 10 µF 1206 X5R,10u,1,0.1,0.1,400.0,MVP
+Placa base,"C10,C12",MLCC 22 µF 1206 X5R,22u,2,0.1,0.2,800.0,MVP
+Placa base,"C11,C13",Cerámico 470 pF C0G,470p,2,0.05,0.1,400.0,MVP
+Placa base,C14,MLCC 1 µF 1206 X5R,1u,1,0.08,0.08,300.0,MVP
+Placa base,D1,LED 3 mm,LED encendido,1,0.05,0.05,200.0,MVP
+Placa base,F1,Portafusible mini + fusible 5 A,5A,1,1.2,1.2,4800.0,MVP
+Placa base,J1,Conector XT30 macho para PCB,BAT 2S (salida BMS),1,1.0,1.0,4000.0,MVP
+Placa base,J2,Conector XT30 hembra para PCB,Hub USB (5V_USB),1,1.0,1.0,4000.0,MVP
+Placa base,J3,JST XH 6 pines (base + carcasa),Motor izq. + encoder,1,0.25,0.25,1000.0,MVP
+Placa base,J4,JST XH 6 pines (base + carcasa),Motor der. + encoder,1,0.25,0.25,1000.0,MVP
+Placa base,J5,Zócalo 1x4 (no montar en el MVP),MLX90640 (fase 2),1,0.3,0.3,1200.0,No montar
+Placa base,J6,JST XH 4 pines,TGS4161 (CO2),1,0.2,0.2,800.0,MVP
+Placa base,J7,JST XH 3 pines,HB100 (radar),1,0.2,0.2,800.0,MVP
+Placa base,L1,Inductor radial 10 µH,10uH,1,0.3,0.3,1200.0,MVP
+Placa base,Q1,MOSFET P TO-220 (protección contra inversión),IRF4905,1,1.2,1.2,4800.0,MVP
+Placa base,Q2,MOSFET N SOT-23 (calefactor),AO3400A,1,0.1,0.1,400.0,MVP
+Placa base,"R1,R3-R7,R15,R27",Resistencia 10kΩ 1/4 W 1 %,10k,8,0.02,0.16,600.0,MVP
+Placa base,"R2,R16,R25",Resistencia 1kΩ 1/4 W 1 %,1k,3,0.02,0.06,200.0,MVP
+Placa base,R8-R11,Resistencia 15kΩ 1/4 W 1 %,15k,4,0.02,0.08,300.0,No montar
+Placa base,"R12,R13",Resistencia 4k7Ω 1/4 W 1 %,4k7,2,0.02,0.04,200.0,MVP
+Placa base,R14,Resistencia 20kΩ 1/4 W 1 %,20k,1,0.02,0.02,100.0,MVP
+Placa base,R17,Resistencia 100Ω 1/4 W 1 %,100,1,0.02,0.02,100.0,MVP
+Placa base,"R18-R21,R23",Resistencia 100kΩ 1/4 W 1 %,100k,5,0.02,0.1,400.0,MVP
+Placa base,"R22,R24",Resistencia 4M7Ω 1/4 W 1 %,4M7,2,0.02,0.04,200.0,MVP
+Placa base,R26,Resistencia 27kΩ 1/4 W 1 %,27k,1,0.02,0.02,100.0,MVP
+Placa base,SW1,Bornera 2 vías (cables al interruptor),Interruptor 5 A,1,0.4,0.4,1600.0,MVP
+Placa base,U1,Módulo reductor MP1584EN,MP1584 5V 3A (5V_USB),1,1.5,1.5,6000.0,MVP
+Placa base,U2,Módulo reductor MP1584EN,MP1584 5V (5V_AUX),1,1.5,1.5,6000.0,MVP
+Placa base,U3,ESP32 DOIT DevKit V1 + 2 zócalos 1x15,ESP32 DevKit V1,1,6.8,6.8,27200.0,MVP
+Placa base,U4,Módulo TB6612FNG,TB6612FNG módulo,1,3.0,3.0,12000.0,MVP
+Placa base,U5,Módulo GY-521 + zócalo 1x8,GY-521 (MPU6050),1,2.8,2.8,11200.0,MVP
+Placa base,U6,Amplificador cuádruple DIP-14 + zócalo,MCP6004,1,0.7,0.7,2800.0,MVP
+Placa base,PCB,Fabricación de la PCB (5 unidades),,1,10.0,10.0,40000.0,MVP
+Tracción,,Motorreductor TT 1:48 con encoder Hall,,2,6.0,12.0,48000.0,MVP
+Tracción,,Rueda 65 mm para eje TT,,2,1.5,3.0,12000.0,MVP
+Tracción,,Rueda loca de bola (1/2 in),,1,2.0,2.0,8000.0,MVP
+Energía,,Celda Li-ion 18650 3000 mAh,,2,5.0,10.0,40000.0,MVP
+Energía,,BMS 2S 10 A,,1,2.0,2.0,8000.0,MVP
+Energía,,Portapilas 2×18650,,1,1.5,1.5,6000.0,MVP
+Energía,,Interruptor de palanca 5 A,,1,1.5,1.5,6000.0,MVP
+Energía,,"Cargador 2S (8,4 V)",,1,8.0,8.0,32000.0,MVP
+Sensores USB,,RPLiDAR A1M8,,1,99.0,99.0,396000.0,MVP
+Sensores USB,,Intel RealSense D435,,1,314.0,314.0,1256000.0,MVP
+Enlace,,Hub USB 3.0 de 4 puertos con entrada de 5 V,,1,15.0,15.0,60000.0,MVP
+Enlace,,Cable de extensión USB 3.0 activo 5 m,,1,15.0,15.0,60000.0,MVP
+Mecánica,,Chasis: 2 placas de acrílico 3 mm cortadas a láser + separadores + tornillería,,1,15.0,15.0,60000.0,MVP
+Mecánica,,"Cables, termorretráctil y conectores varios",,1,8.0,8.0,32000.0,MVP
+Signos de vida,,Cámara térmica MLX90640-BAA (módulo),,1,60.0,60.0,240000.0,Fase 2
+Signos de vida,,Sensor de CO2 Figaro TGS4161,,1,45.0,45.0,180000.0,Fase 2
+Signos de vida,,Radar Doppler HB100,,1,8.0,8.0,32000.0,Fase 2
+Signos de vida,,ReSpeaker USB Mic Array v2.0,,1,69.0,69.0,276000.0,Fase 2

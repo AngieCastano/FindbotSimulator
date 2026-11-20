@@ -128,9 +128,13 @@ def render(cfg):
     lines += [
         '// FINDBOT_ROS_DOMAIN_E2E lo define solo el entorno esp32_e2e (prueba aislada)',
         '#ifdef FINDBOT_ROS_DOMAIN_E2E',
-        f'constexpr uint32_t ROS_DOMAIN_ID = {int(ros["e2e_domain_id"])};',
+        f'constexpr uint32_t ROS_DOMAIN_ID = {int(ros["e2e"]["domain_id"])};',
+        f'constexpr uint32_t ENTITY_TIMEOUT_MS = {int(ros["e2e"]["entity_timeout_ms"])};',
+        f'constexpr int AGENT_TIMEOUT_MS = {int(ros["e2e"]["agent_timeout_ms"])};',
         '#else',
         f'constexpr uint32_t ROS_DOMAIN_ID = {int(ros["domain_id"])};',
+        f'constexpr uint32_t ENTITY_TIMEOUT_MS = {int(ros["entity_timeout_ms"])};',
+        f'constexpr int AGENT_TIMEOUT_MS = {int(ros["agent_timeout_ms"])};',
         '#endif',
     ]
     for name, topic in ros['topics'].items():
@@ -148,9 +152,7 @@ def render(cfg):
         f'constexpr bool PUBLISH_ODOM_TF = {str(bool(ros["publish_odom_tf"])).lower()};',
         f'constexpr uint32_t AGENT_PING_MS = {int(ros["agent_ping_ms"])};',
         f'constexpr uint32_t AGENT_CHECK_MS = {int(ros["agent_check_ms"])};',
-        f'constexpr int AGENT_TIMEOUT_MS = {int(ros["agent_timeout_ms"])};',
         f'constexpr uint8_t AGENT_ATTEMPTS = {int(ros["agent_attempts"])};',
-        f'constexpr uint32_t ENTITY_TIMEOUT_MS = {int(ros["entity_timeout_ms"])};',
         f'constexpr int ROS_TASK_CORE = {int(ros["task_core"])};',
         f'constexpr uint32_t ROS_TASK_STACK = {int(ros["task_stack_bytes"])};',
         f'constexpr float COV_ODOM_POSE[6] = {farr(cov["odom_pose"])};',

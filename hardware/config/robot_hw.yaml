@@ -199,7 +199,10 @@ firmware:
   ros:                         # micro-ROS (H6). Nombres iguales a los del xacro y del bridge de la simulación
     node_name: findbot_esp32
     domain_id: 0                 # el ESP32 no lee ROS_DOMAIN_ID: se fija aquí (igual que la simulación)
-    e2e_domain_id: 77            # dominio aislado de la prueba de punta a punta (entorno esp32_e2e)
+    e2e:                         # solo el entorno esp32_e2e (prueba de punta a punta en Wokwi)
+      domain_id: 77              # dominio DDS aislado: nunca se mezcla con Gazebo (dominio 0)
+      entity_timeout_ms: 20000   # el serial de Wokwi pasa por la nube y su cola crece al crear entidades
+      agent_timeout_ms: 3000
     topics:
       cmd_vel: /cmd_vel            # geometry_msgs/Twist (entrada)
       odom: /odom                  # nav_msgs/Odometry

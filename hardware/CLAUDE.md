@@ -129,6 +129,19 @@ y `/odom` va de `odom` a `base_footprint`, igual que en el xacro.
 - Por ajustar con el robot real: sentido de motores y encoders (`firmware.*_invert_*`),
   zona muerta, ganancias del PID y pendiente del TGS4161.
 
+## Verificación completa y cierre (H7)
+- `bash -ic 'hardware/check_all.sh [--e2e]'`: corre todas las verificaciones de H1–H7 y resume
+  (sin `WOKWI_CLI_TOKEN` las de Wokwi quedan OMITIDAS).
+- `scripts/check_consistency.py`: tablas de `hardware/CLAUDE.md` contra el YAML (error si
+  difieren), tabla raíz contra el firmware (error si falta un tópico MVP del ESP32) y simulación
+  contra el hardware (advertencias; solo lee `usar_ws/`).
+- `bom/gen_bom.py` + `bom/prices.yaml`: lista de materiales con costos en USD y COP
+  (precios ESTIMADOS: actualizar antes de comprar). Resumen en `bom/resumen.md`.
+- Informe para la tesis: `docs/informe_hardware.md` (CDIO, resultados y lista de verificación
+  con el hardware real).
+- `firmware.ros.e2e`: esperas más largas solo para `esp32_e2e` (la cola del serial de Wokwi crece
+  al crear entidades); el robot usa `entity_timeout_ms`/`agent_timeout_ms` normales.
+
 ## micro-ROS (H6)
 - Entornos: `esp32` = robot (micro-ROS por USB serial, dominio DDS `ros.domain_id` = 0);
   `esp32_e2e` = igual pero en el dominio aislado `ros.e2e_domain_id` = 77 (pruebas);

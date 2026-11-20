@@ -1,0 +1,59 @@
+# Precios de referencia para la lista de materiales (Fase H7).
+# ⚠ TODOS SON ESTIMADOS (noviembre de 2026, precio minorista en línea, sin envío ni impuestos).
+#   Verificar con proveedores locales antes de comprar y actualizar aquí; luego: python3 hardware/bom/gen_bom.py
+usd_to_cop: 4000            # tasa de referencia USD → COP: actualizar con la TRM del día de compra
+price_date: 2026-11
+pcb_fabrication_usd: 10.0   # 5 placas 100×100 mm, 2 capas (fabricante en línea), sin envío
+
+# Precio unitario por "Valor" de la lista exportada por KiCad (hardware/kicad/out/findbot_bom.csv).
+# Las resistencias se reconocen por la referencia R* (precio único).
+resistor_usd: 0.02
+board_by_value:
+  "470uF/16V": {usd: 0.25, desc: "Electrolítico 470 µF 16 V"}
+  "100uF/10V": {usd: 0.12, desc: "Electrolítico 100 µF 10 V"}
+  "100uF/16V": {usd: 0.12, desc: "Electrolítico 100 µF 16 V"}
+  "100n": {usd: 0.05, desc: "Cerámico 100 nF"}
+  "470p": {usd: 0.05, desc: "Cerámico 470 pF C0G"}
+  "10u": {usd: 0.10, desc: "MLCC 10 µF 1206 X5R"}
+  "22u": {usd: 0.10, desc: "MLCC 22 µF 1206 X5R"}
+  "1u": {usd: 0.08, desc: "MLCC 1 µF 1206 X5R"}
+  "10uH": {usd: 0.30, desc: "Inductor radial 10 µH"}
+  "LED encendido": {usd: 0.05, desc: "LED 3 mm"}
+  "5A": {usd: 1.20, desc: "Portafusible mini + fusible 5 A"}
+  "Interruptor 5 A": {usd: 0.40, desc: "Bornera 2 vías (cables al interruptor)"}
+  "BAT 2S (salida BMS)": {usd: 1.00, desc: "Conector XT30 macho para PCB"}
+  "Hub USB (5V_USB)": {usd: 1.00, desc: "Conector XT30 hembra para PCB"}
+  "Motor izq. + encoder": {usd: 0.25, desc: "JST XH 6 pines (base + carcasa)"}
+  "Motor der. + encoder": {usd: 0.25, desc: "JST XH 6 pines (base + carcasa)"}
+  "TGS4161 (CO2)": {usd: 0.20, desc: "JST XH 4 pines"}
+  "HB100 (radar)": {usd: 0.20, desc: "JST XH 3 pines"}
+  "MLX90640 (fase 2)": {usd: 0.30, desc: "Zócalo 1x4 (no montar en el MVP)"}
+  "IRF4905": {usd: 1.20, desc: "MOSFET P TO-220 (protección contra inversión)"}
+  "AO3400A": {usd: 0.10, desc: "MOSFET N SOT-23 (calefactor)"}
+  "MCP6004": {usd: 0.70, desc: "Amplificador cuádruple DIP-14 + zócalo"}
+  "MP1584 5V 3A (5V_USB)": {usd: 1.50, desc: "Módulo reductor MP1584EN"}
+  "MP1584 5V (5V_AUX)": {usd: 1.50, desc: "Módulo reductor MP1584EN"}
+  "ESP32 DevKit V1": {usd: 6.80, desc: "ESP32 DOIT DevKit V1 + 2 zócalos 1x15"}
+  "TB6612FNG módulo": {usd: 3.00, desc: "Módulo TB6612FNG"}
+  "GY-521 (MPU6050)": {usd: 2.80, desc: "Módulo GY-521 + zócalo 1x8"}
+
+# Elementos fuera de la placa base. fase: MVP | Fase 2 | Opcional
+offboard:
+  - {item: "Motorreductor TT 1:48 con encoder Hall", qty: 2, usd: 6.00, fase: MVP, grupo: Tracción}
+  - {item: "Rueda 65 mm para eje TT", qty: 2, usd: 1.50, fase: MVP, grupo: Tracción}
+  - {item: "Rueda loca de bola (1/2 in)", qty: 1, usd: 2.00, fase: MVP, grupo: Tracción}
+  - {item: "Celda Li-ion 18650 3000 mAh", qty: 2, usd: 5.00, fase: MVP, grupo: Energía}
+  - {item: "BMS 2S 10 A", qty: 1, usd: 2.00, fase: MVP, grupo: Energía}
+  - {item: "Portapilas 2×18650", qty: 1, usd: 1.50, fase: MVP, grupo: Energía}
+  - {item: "Interruptor de palanca 5 A", qty: 1, usd: 1.50, fase: MVP, grupo: Energía}
+  - {item: "Cargador 2S (8,4 V)", qty: 1, usd: 8.00, fase: MVP, grupo: Energía}
+  - {item: "RPLiDAR A1M8", qty: 1, usd: 99.00, fase: MVP, grupo: Sensores USB}
+  - {item: "Intel RealSense D435", qty: 1, usd: 314.00, fase: MVP, grupo: Sensores USB}
+  - {item: "Hub USB 3.0 de 4 puertos con entrada de 5 V", qty: 1, usd: 15.00, fase: MVP, grupo: Enlace}
+  - {item: "Cable de extensión USB 3.0 activo 5 m", qty: 1, usd: 15.00, fase: MVP, grupo: Enlace}
+  - {item: "Chasis: 2 placas de acrílico 3 mm cortadas a láser + separadores + tornillería", qty: 1, usd: 15.00, fase: MVP, grupo: Mecánica}
+  - {item: "Cables, termorretráctil y conectores varios", qty: 1, usd: 8.00, fase: MVP, grupo: Mecánica}
+  - {item: "Cámara térmica MLX90640-BAA (módulo)", qty: 1, usd: 60.00, fase: Fase 2, grupo: Signos de vida}
+  - {item: "Sensor de CO2 Figaro TGS4161", qty: 1, usd: 45.00, fase: Fase 2, grupo: Signos de vida}
+  - {item: "Radar Doppler HB100", qty: 1, usd: 8.00, fase: Fase 2, grupo: Signos de vida}
+  - {item: "ReSpeaker USB Mic Array v2.0", qty: 1, usd: 69.00, fase: Fase 2, grupo: Signos de vida}

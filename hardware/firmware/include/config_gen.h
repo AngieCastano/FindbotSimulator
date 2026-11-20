@@ -93,8 +93,12 @@ constexpr const char* ROS_NODE_NAME = "findbot_esp32";
 // FINDBOT_ROS_DOMAIN_E2E lo define solo el entorno esp32_e2e (prueba aislada)
 #ifdef FINDBOT_ROS_DOMAIN_E2E
 constexpr uint32_t ROS_DOMAIN_ID = 77;
+constexpr uint32_t ENTITY_TIMEOUT_MS = 20000;
+constexpr int AGENT_TIMEOUT_MS = 3000;
 #else
 constexpr uint32_t ROS_DOMAIN_ID = 0;
+constexpr uint32_t ENTITY_TIMEOUT_MS = 3000;
+constexpr int AGENT_TIMEOUT_MS = 1000;
 #endif
 constexpr const char* TOPIC_CMD_VEL = "/cmd_vel";
 constexpr const char* TOPIC_ODOM = "/odom";
@@ -114,9 +118,7 @@ constexpr uint32_t PUB_PERIOD_BATTERY_MS = 1000;
 constexpr bool PUBLISH_ODOM_TF = true;
 constexpr uint32_t AGENT_PING_MS = 500;
 constexpr uint32_t AGENT_CHECK_MS = 1000;
-constexpr int AGENT_TIMEOUT_MS = 1000;
 constexpr uint8_t AGENT_ATTEMPTS = 3;
-constexpr uint32_t ENTITY_TIMEOUT_MS = 3000;
 constexpr int ROS_TASK_CORE = 0;
 constexpr uint32_t ROS_TASK_STACK = 16384;
 constexpr float COV_ODOM_POSE[6] = {0.001f, 0.001f, 1000000.0f, 1000000.0f, 1000000.0f, 0.01f};
