@@ -4,6 +4,7 @@
 #include <driver/pcnt.h>
 
 #include "config_gen.h"
+#include "log.h"
 
 namespace {
 
@@ -128,7 +129,7 @@ void Encoders::begin() {
     pcnt_setup(g_pcnt[0], cfg::PIN_ENC_L_A, cfg::PIN_ENC_L_B);
     pcnt_setup(g_pcnt[1], cfg::PIN_ENC_R_A, cfg::PIN_ENC_R_B);
     if (pcnt_isr_service_install(0) != ESP_OK) {
-      Serial.println("# ERROR: no se pudo instalar la ISR del PCNT (desbordes sin contar)");
+      LOG_PRINTF("# ERROR: no se pudo instalar la ISR del PCNT (desbordes sin contar)\n");
     }
     pcnt_start(g_pcnt[0]);
     pcnt_start(g_pcnt[1]);

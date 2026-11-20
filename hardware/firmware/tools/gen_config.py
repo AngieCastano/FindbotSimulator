@@ -109,6 +109,56 @@ def render(cfg):
         f'constexpr float PID_I_LIMIT = {f(pid["i_limit"])};',
         f'constexpr float PID_OUT_LIMIT = {f(pid["out_limit"])};',
         '',
+        '// --- micro-ROS (firmware.ros) ---',
+    ]
+    ros = fw['ros']
+
+    def s(text):
+        return '"' + str(text).replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+    def farr(values):
+        return '{' + ', '.join(f(v) for v in values) + '}'
+
+    if len(ros['joints']) != 2:
+        raise SystemExit('firmware.ros.joints debe tener exactamente 2 nombres (izquierda, derecha)')
+    for key in ('odom_pose', 'odom_twist'):
+        if len(ros['covariance'][key]) != 6:
+            raise SystemExit(f'firmware.ros.covariance.{key} debe tener 6 valores')
+    lines.append(f'constexpr const char* ROS_NODE_NAME = {s(ros["node_name"])};')
+    lines += [
+        '// FINDBOT_ROS_DOMAIN_E2E lo define solo el entorno esp32_e2e (prueba aislada)',
+        '#ifdef FINDBOT_ROS_DOMAIN_E2E',
+        f'constexpr uint32_t ROS_DOMAIN_ID = {int(ros["e2e_domain_id"])};',
+        '#else',
+        f'constexpr uint32_t ROS_DOMAIN_ID = {int(ros["domain_id"])};',
+        '#endif',
+    ]
+    for name, topic in ros['topics'].items():
+        lines.append(f'constexpr const char* TOPIC_{name.upper()} = {s(topic)};')
+    for name, frame in ros['frames'].items():
+        lines.append(f'constexpr const char* FRAME_{name.upper()} = {s(frame)};')
+    lines += [
+        f'constexpr const char* JOINT_LEFT = {s(ros["joints"][0])};',
+        f'constexpr const char* JOINT_RIGHT = {s(ros["joints"][1])};',
+    ]
+    for name, hz in ros['publish_hz'].items():
+        lines.append(f'constexpr uint32_t PUB_PERIOD_{name.upper()}_MS = {int(round(1000 / hz))};')
+    cov = ros['covariance']
+    lines += [
+        f'constexpr bool PUBLISH_ODOM_TF = {str(bool(ros["publish_odom_tf"])).lower()};',
+        f'constexpr uint32_t AGENT_PING_MS = {int(ros["agent_ping_ms"])};',
+        f'constexpr uint32_t AGENT_CHECK_MS = {int(ros["agent_check_ms"])};',
+        f'constexpr int AGENT_TIMEOUT_MS = {int(ros["agent_timeout_ms"])};',
+        f'constexpr uint8_t AGENT_ATTEMPTS = {int(ros["agent_attempts"])};',
+        f'constexpr uint32_t ENTITY_TIMEOUT_MS = {int(ros["entity_timeout_ms"])};',
+        f'constexpr int ROS_TASK_CORE = {int(ros["task_core"])};',
+        f'constexpr uint32_t ROS_TASK_STACK = {int(ros["task_stack_bytes"])};',
+        f'constexpr float COV_ODOM_POSE[6] = {farr(cov["odom_pose"])};',
+        f'constexpr float COV_ODOM_TWIST[6] = {farr(cov["odom_twist"])};',
+        f'constexpr float COV_IMU_GYRO = {f(cov["imu_gyro"])};',
+        f'constexpr float COV_IMU_ACCEL = {f(cov["imu_accel"])};',
+        f'constexpr float BAT_DESIGN_CAPACITY_AH = {f(bat["capacity_ah"])};',
+        '',
         '}  // namespace cfg',
         '',
     ]
@@ -119,7 +169,7 @@ def check_ini(cfg):
     """platformio.ini no puede leer el YAML: se verifica que monitor_speed coincida."""
     ini = configparser.ConfigParser()
     ini.read(FW_DIR / 'platformio.ini')
-    speed = int(ini['env:esp32']['monitor_speed'])
+    speed = int(ini['esp32_base']['monitor_speed'])
     baud = int(cfg['mcu']['usb_serial_baud'])
     return [] if speed == baud else [f'platformio.ini monitor_speed={speed} ≠ usb_serial_baud={baud}']
 

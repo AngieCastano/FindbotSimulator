@@ -88,4 +88,41 @@ constexpr float PID_KD = 0.0f;
 constexpr float PID_I_LIMIT = 0.3f;
 constexpr float PID_OUT_LIMIT = 1.0f;
 
+// --- micro-ROS (firmware.ros) ---
+constexpr const char* ROS_NODE_NAME = "findbot_esp32";
+// FINDBOT_ROS_DOMAIN_E2E lo define solo el entorno esp32_e2e (prueba aislada)
+#ifdef FINDBOT_ROS_DOMAIN_E2E
+constexpr uint32_t ROS_DOMAIN_ID = 77;
+#else
+constexpr uint32_t ROS_DOMAIN_ID = 0;
+#endif
+constexpr const char* TOPIC_CMD_VEL = "/cmd_vel";
+constexpr const char* TOPIC_ODOM = "/odom";
+constexpr const char* TOPIC_JOINT_STATES = "/joint_states";
+constexpr const char* TOPIC_IMU = "/imu/data_raw";
+constexpr const char* TOPIC_BATTERY = "/battery_state";
+constexpr const char* TOPIC_TF = "/tf";
+constexpr const char* FRAME_ODOM = "odom";
+constexpr const char* FRAME_BASE = "base_footprint";
+constexpr const char* FRAME_IMU = "imu_link";
+constexpr const char* JOINT_LEFT = "left_wheel_joint";
+constexpr const char* JOINT_RIGHT = "right_wheel_joint";
+constexpr uint32_t PUB_PERIOD_ODOM_MS = 50;
+constexpr uint32_t PUB_PERIOD_JOINT_STATES_MS = 50;
+constexpr uint32_t PUB_PERIOD_IMU_MS = 20;
+constexpr uint32_t PUB_PERIOD_BATTERY_MS = 1000;
+constexpr bool PUBLISH_ODOM_TF = true;
+constexpr uint32_t AGENT_PING_MS = 500;
+constexpr uint32_t AGENT_CHECK_MS = 1000;
+constexpr int AGENT_TIMEOUT_MS = 1000;
+constexpr uint8_t AGENT_ATTEMPTS = 3;
+constexpr uint32_t ENTITY_TIMEOUT_MS = 3000;
+constexpr int ROS_TASK_CORE = 0;
+constexpr uint32_t ROS_TASK_STACK = 16384;
+constexpr float COV_ODOM_POSE[6] = {0.001f, 0.001f, 1000000.0f, 1000000.0f, 1000000.0f, 0.01f};
+constexpr float COV_ODOM_TWIST[6] = {0.001f, 1000000.0f, 1000000.0f, 1000000.0f, 1000000.0f, 0.01f};
+constexpr float COV_IMU_GYRO = 0.0001f;
+constexpr float COV_IMU_ACCEL = 0.01f;
+constexpr float BAT_DESIGN_CAPACITY_AH = 3.0f;
+
 }  // namespace cfg

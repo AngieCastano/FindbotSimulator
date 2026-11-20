@@ -1,0 +1,303 @@
+{
+  "version": 1,
+  "author": "findbot (generado por gen_wokwi.py)",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-mpu6050",
+      "id": "imu",
+      "top": -150,
+      "left": 250,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_bat",
+      "top": -150,
+      "left": -250,
+      "attrs": {
+        "value": "620"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_co2",
+      "top": -150,
+      "left": -130,
+      "attrs": {
+        "value": "325"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_radar",
+      "top": -150,
+      "left": -10,
+      "attrs": {
+        "value": "512"
+      }
+    },
+    {
+      "type": "wokwi-logic-analyzer",
+      "id": "la",
+      "top": 250,
+      "left": 250,
+      "attrs": {
+        "bufferSize": "1000000",
+        "channels": "8"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_heater",
+      "top": 120,
+      "left": 250,
+      "attrs": {
+        "color": "orange"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_heater",
+      "top": 170,
+      "left": 200,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-ky-040",
+      "id": "enc_l",
+      "top": 250,
+      "left": -250,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ky-040",
+      "id": "enc_r",
+      "top": 350,
+      "left": -250,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [
+      "imu:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "imu:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "imu:SDA",
+      "esp:D21",
+      "green",
+      []
+    ],
+    [
+      "imu:SCL",
+      "esp:D22",
+      "blue",
+      []
+    ],
+    [
+      "imu:INT",
+      "esp:D23",
+      "violet",
+      []
+    ],
+    [
+      "imu:AD0",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "enc_l:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "enc_l:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "enc_l:CLK",
+      "esp:D18",
+      "yellow",
+      []
+    ],
+    [
+      "enc_l:DT",
+      "esp:D19",
+      "orange",
+      []
+    ],
+    [
+      "enc_r:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "enc_r:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "enc_r:CLK",
+      "esp:RX2",
+      "yellow",
+      []
+    ],
+    [
+      "enc_r:DT",
+      "esp:TX2",
+      "orange",
+      []
+    ],
+    [
+      "pot_bat:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "pot_bat:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "pot_bat:SIG",
+      "esp:VP",
+      "cyan",
+      []
+    ],
+    [
+      "pot_co2:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "pot_co2:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "pot_co2:SIG",
+      "esp:VN",
+      "cyan",
+      []
+    ],
+    [
+      "pot_radar:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "pot_radar:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "pot_radar:SIG",
+      "esp:D34",
+      "cyan",
+      []
+    ],
+    [
+      "la:D0",
+      "esp:D26",
+      "gray",
+      []
+    ],
+    [
+      "la:D1",
+      "esp:D27",
+      "gray",
+      []
+    ],
+    [
+      "la:D2",
+      "esp:D14",
+      "gray",
+      []
+    ],
+    [
+      "la:D3",
+      "esp:D25",
+      "gray",
+      []
+    ],
+    [
+      "la:D4",
+      "esp:D33",
+      "gray",
+      []
+    ],
+    [
+      "la:D5",
+      "esp:D32",
+      "gray",
+      []
+    ],
+    [
+      "la:D6",
+      "esp:D13",
+      "gray",
+      []
+    ],
+    [
+      "la:D7",
+      "esp:D4",
+      "gray",
+      []
+    ],
+    [
+      "la:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:D4",
+      "r_heater:1",
+      "orange",
+      []
+    ],
+    [
+      "r_heater:2",
+      "led_heater:A",
+      "orange",
+      []
+    ],
+    [
+      "led_heater:C",
+      "esp:GND.2",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}

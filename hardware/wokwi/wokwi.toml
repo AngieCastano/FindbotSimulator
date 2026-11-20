@@ -1,5 +1,5 @@
-# Generado por gen_wokwi.py — firmware compilado por PlatformIO (entorno esp32)
+# Generado por gen_wokwi.py — firmware compilado por PlatformIO (entorno esp32_debug: interfaz de texto)
 [wokwi]
 version = 1
-firmware = '../firmware/.pio/build/esp32/firmware.bin'
-elf = '../firmware/.pio/build/esp32/firmware.elf'
+firmware = '../firmware/.pio/build/esp32_debug/firmware.bin'
+elf = '../firmware/.pio/build/esp32_debug/firmware.elf'

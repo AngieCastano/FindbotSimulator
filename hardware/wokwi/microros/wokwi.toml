@@ -1,0 +1,5 @@
+# Generado por gen_wokwi.py — firmware micro-ROS (entorno esp32_e2e, dominio DDS aislado), prueba de punta a punta H6
+[wokwi]
+version = 1
+firmware = '../../firmware/.pio/build/esp32_e2e/firmware.bin'
+elf = '../../firmware/.pio/build/esp32_e2e/firmware.elf'

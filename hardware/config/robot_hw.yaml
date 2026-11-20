@@ -196,6 +196,41 @@ firmware:
     slope_v_per_decade: 0.05   # ΔFEM por década de CO2 (hoja de datos: 0.044–0.072; calibrar)
     ref_ppm: 400               # concentración de la línea base (aire limpio)
   radar_rms_window: 200        # muestras (1 s a 200 Hz)
+  ros:                         # micro-ROS (H6). Nombres iguales a los del xacro y del bridge de la simulación
+    node_name: findbot_esp32
+    domain_id: 0                 # el ESP32 no lee ROS_DOMAIN_ID: se fija aquí (igual que la simulación)
+    e2e_domain_id: 77            # dominio aislado de la prueba de punta a punta (entorno esp32_e2e)
+    topics:
+      cmd_vel: /cmd_vel            # geometry_msgs/Twist (entrada)
+      odom: /odom                  # nav_msgs/Odometry
+      joint_states: /joint_states  # sensor_msgs/JointState
+      imu: /imu/data_raw           # sensor_msgs/Imu (sin orientación)
+      battery: /battery_state      # sensor_msgs/BatteryState
+      tf: /tf                      # tf2_msgs/TFMessage (solo si publish_odom_tf)
+    frames:
+      odom: odom
+      base: base_footprint
+      imu: imu_link
+    joints: [left_wheel_joint, right_wheel_joint]
+    publish_hz:                  # 921600 baudios ≈ 92 kB/s: así el enlace queda al ~40 %
+      odom: 20
+      joint_states: 20
+      imu: 50
+      battery: 1
+    publish_odom_tf: true        # igual que el DiffDrive de la simulación; false cuando exista el EKF
+    agent_ping_ms: 500           # reintento de conexión con el agente
+    agent_check_ms: 1000         # verificación periódica de que el agente sigue vivo
+    agent_timeout_ms: 1000       # espera por respuesta (Wokwi pasa por la nube: ~400 ms de ida y vuelta)
+    entity_timeout_ms: 3000      # espera al crear cada publicador/suscriptor en el agente
+    agent_attempts: 3            # agente perdido tras 3 intentos fallidos (≤ 3 s; los motores ya
+                                 # se detuvieron a los cmd_timeout_s por falta de /cmd_vel)
+    task_core: 0                 # micro-ROS en su propia tarea FreeRTOS: el control (núcleo 1)
+    task_stack_bytes: 16384      # nunca queda bloqueado por la comunicación
+    covariance:                  # varianzas (diagonal); a calibrar con el robot real
+      odom_pose: [0.001, 0.001, 1.0e6, 1.0e6, 1.0e6, 0.01]   # x y z roll pitch yaw (z/roll/pitch no se miden)
+      odom_twist: [0.001, 1.0e6, 1.0e6, 1.0e6, 1.0e6, 0.01]  # vx vy vz wx wy wz
+      imu_gyro: 1.0e-4           # (rad/s)²
+      imu_accel: 1.0e-2          # (m/s²)²
 
 # ---------------------------------------------------------------------------------------------
 # Geometría (la copia la sesión de simulación al xacro). Posiciones respecto a base_link.

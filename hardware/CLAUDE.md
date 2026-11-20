@@ -129,6 +129,27 @@ y `/odom` va de `odom` a `base_footprint`, igual que en el xacro.
 - Por ajustar con el robot real: sentido de motores y encoders (`firmware.*_invert_*`),
   zona muerta, ganancias del PID y pendiente del TGS4161.
 
+## micro-ROS (H6)
+- Entornos: `esp32` = robot (micro-ROS por USB serial, dominio DDS `ros.domain_id` = 0);
+  `esp32_e2e` = igual pero en el dominio aislado `ros.e2e_domain_id` = 77 (pruebas);
+  `esp32_debug` = interfaz de texto (Wokwi H5). **Con micro-ROS no se puede imprimir texto por el
+  serial**: todo aviso pasa por `LOG_PRINTF` (`src/log.h`), que se anula en esp32/esp32_e2e.
+- El ESP32 NO lee `ROS_DOMAIN_ID`: el dominio está compilado desde el YAML. Nunca probar con el
+  entorno `esp32` mientras la simulación de Gazebo corre en el dominio 0 (sus /odom y /tf chocarían).
+- Tópicos: suscribe `/cmd_vel` (Twist); publica `/odom` y `/tf` odom→base_footprint (20 Hz),
+  `/joint_states` (20 Hz), `/imu/data_raw` (50 Hz, best effort, sin orientación),
+  `/battery_state` (1 Hz). Nombres, frames, frecuencias y covarianzas en `firmware.ros`.
+- micro-ROS corre en su propia tarea FreeRTOS (núcleo 0); el control (núcleo 1) nunca se bloquea
+  por la comunicación. Lo compartido (mando, vigilante, copia de datos) va con `portMUX`.
+- `extra_packages/tf2_msgs`: copia mínima de `TFMessage` (micro_ros_platformio no trae tf2_msgs).
+  Tras cambiar `extra_packages`: `pio run -e esp32 -t clean_microros` y recompilar (~5 min).
+- Robot real: `docker run -it --rm --net=host --ipc=host -v /dev:/dev --privileged
+  microros/micro-ros-agent:jazzy serial --dev /dev/ttyUSB0 -b 921600`.
+- Prueba de punta a punta sin ESP32 físico: `bash -ic 'hardware/wokwi/run_microros_e2e.sh'`
+  (Wokwi ⇄ socat ⇄ agente en Docker ⇄ ros2 CLI, dominio 77; 7 verificaciones). En Wokwi la tasa
+  de publicación cae a ~1 Hz por la latencia de su nube; las frecuencias reales se miden con el
+  ESP32 por USB.
+
 ## Simulación Wokwi (H5)
 - `hardware/wokwi/gen_wokwi.py` genera `diagram.json`, `scenario_h5.yaml` y `wokwi.toml` desde
   `robot_hw.yaml` (no editarlos a mano). `run_wokwi.sh` compila, regenera, hace `lint` y corre la

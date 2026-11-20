@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 command -v wokwi-cli >/dev/null || { echo "Falta wokwi-cli (ver hardware/CLAUDE.md)"; exit 2; }
 [ -n "${WOKWI_CLI_TOKEN:-}" ] || { echo "Falta la variable WOKWI_CLI_TOKEN"; exit 2; }
 PIO="${PIO:-$HOME/.local/bin/pio}"
-(cd ../firmware && "$PIO" run -e esp32 | tail -3)
+(cd ../firmware && "$PIO" run -e esp32_debug | tail -3)
 python3 gen_wokwi.py
 mkdir -p out
 wokwi-cli lint .

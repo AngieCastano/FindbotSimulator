@@ -199,10 +199,20 @@ def main():
         header + yaml.safe_dump(scenario, allow_unicode=True, sort_keys=False, width=100),
         encoding='utf-8')
     (WOKWI_DIR / 'wokwi.toml').write_text(
-        '# Generado por gen_wokwi.py — firmware compilado por PlatformIO (entorno esp32)\n'
+        '# Generado por gen_wokwi.py — firmware compilado por PlatformIO (entorno esp32_debug: interfaz de texto)\n'
         '[wokwi]\nversion = 1\n'
-        "firmware = '../firmware/.pio/build/esp32/firmware.bin'\n"
-        "elf = '../firmware/.pio/build/esp32/firmware.elf'\n", encoding='utf-8')
+        "firmware = '../firmware/.pio/build/esp32_debug/firmware.bin'\n"
+        "elf = '../firmware/.pio/build/esp32_debug/firmware.elf'\n", encoding='utf-8')
+    # Variante micro-ROS (H6): mismo circuito, firmware del entorno esp32 (protocolo binario)
+    uros = WOKWI_DIR / 'microros'
+    uros.mkdir(exist_ok=True)
+    (uros / 'diagram.json').write_text(json.dumps(diagram, indent=2, ensure_ascii=False) + '\n',
+                                       encoding='utf-8')
+    (uros / 'wokwi.toml').write_text(
+        '# Generado por gen_wokwi.py — firmware micro-ROS (entorno esp32_e2e, dominio DDS aislado), prueba de punta a punta H6\n'
+        '[wokwi]\nversion = 1\n'
+        "firmware = '../../firmware/.pio/build/esp32_e2e/firmware.bin'\n"
+        "elf = '../../firmware/.pio/build/esp32_e2e/firmware.elf'\n", encoding='utf-8')
     print(f'diagram.json + diagram_ci.json ({len(diagram["parts"])}/{len(diagram_ci["parts"])} piezas, {len(diagram["connections"])} cables), '
           f'scenario_h5.yaml ({len(scenario["steps"])} pasos), wokwi.toml')
 
