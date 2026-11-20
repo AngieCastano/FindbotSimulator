@@ -59,3 +59,13 @@ frontier_explorer:
     # mismo sitio (radio progress_distance): el controlador ve una colisión en su trayectoria y
     # no avanza hacia ninguna meta aunque el centro no esté en la zona inscrita. 0 = desactivado.
     stuck_failures: 2
+    # Escape de último recurso: si escape_bypass_after escapes seguidos no mueven el robot más de
+    # escape_min_motion (un obstáculo quedó dentro del polígono del collision_monitor, que frena
+    # todo movimiento, incluso alejarse), avanza o retrocede en línea recta, sin girar, hacia el
+    # lado de menor costo, publicando directamente en escape_bypass_topic (sin collision_monitor).
+    # Lento y corto: alejarse en recta de un obstáculo que no toca la carcasa no puede chocar.
+    escape_min_motion: 0.03     # m
+    escape_bypass_after: 3      # 0 = desactivado
+    escape_bypass_topic: /cmd_vel
+    escape_bypass_speed: 0.05   # m/s
+    escape_bypass_distance: 0.15   # m

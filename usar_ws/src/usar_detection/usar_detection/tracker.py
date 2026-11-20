@@ -11,6 +11,15 @@ cuántas capturas distintas se observó. Periódicamente:
   3. un grupo observado en al menos `min_observations` capturas distintas es una víctima
      confirmada; su posición es el centroide del grupo ponderado por la evidencia.
 
+Opcionalmente se exige una geometría (filtro de forma, Fase 8): largo, ancho, altura máxima y
+perfil de alturas a lo largo del grupo (relación entre el tercio más alto y el más bajo). Un
+grupo que no la cumple sigue como tentativo aunque tenga observaciones suficientes.
+
+Una víctima ya confirmada no se retira solo porque su grupo crezca por encima del largo o ancho
+máximos: ocurre cuando la evidencia de dos víctimas cercanas (o de una víctima y un escombro bajo
+vecino) acaba uniéndose. En ese caso se mantiene en su última posición. Sí se retira si el grupo
+deja de cumplir la altura o el perfil (la evidencia contradice la forma humana).
+
 A diferencia de asociar un único punto por detección, el centroide de la evidencia tiende al
 centro del cuerpo a medida que se observa desde varios ángulos, y las partes de una víctima vistas
 por separado no generan víctimas duplicadas. Los números de víctima se mantienen entre
@@ -18,7 +27,7 @@ actualizaciones asociando cada grupo al número confirmado más cercano (a menos
 `match_distance`).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
@@ -37,6 +46,15 @@ class Track:
     last_stamp: float
     cells: int = 0
     victim_id: Optional[int] = None
+    length: float = 0.0                  # m, a lo largo del eje principal del grupo
+    width: float = 0.0                   # m, perpendicular al eje principal
+    height: float = 0.0                  # m, altura máxima sobre el suelo
+    profile_ratio: float = 1.0           # altura del tercio más alto / del más bajo
+    shape_ok: bool = True
+    #: Solo falla el largo o el ancho máximos (p. ej. dos víctimas cercanas unidas).
+    oversize: bool = False
+    #: Centros de las celdas del grupo (uso interno del tracker).
+    cell_centers: Optional[np.ndarray] = field(default=None, repr=False, compare=False)
 
     @property
     def confirmed(self) -> bool:
@@ -48,11 +66,33 @@ class Track:
         return min(1.0, self.observations / (2.0 * min_observations))
 
 
+#: Claves del filtro de forma (todas opcionales).
+SHAPE_KEYS = ('min_length', 'max_length', 'min_width', 'max_width', 'min_height', 'max_height',
+              'min_profile_ratio')
+
+
+def shape_matches(track: 'Track', shape: Optional[Dict[str, float]]) -> bool:
+    """Cierto si la geometría del grupo cumple el filtro (sin filtro, siempre)."""
+    if not shape:
+        return True
+    checks = (
+        ('min_length', track.length, 1), ('max_length', track.length, -1),
+        ('min_width', track.width, 1), ('max_width', track.width, -1),
+        ('min_height', track.height, 1), ('max_height', track.height, -1),
+        ('min_profile_ratio', track.profile_ratio, 1),
+    )
+    for key, value, sign in checks:
+        if key in shape and sign * (value - float(shape[key])) < 0:
+            return False
+    return True
+
+
 @dataclass
 class _Cell:
     hits: int
     frames: Set[int]
     sum_z: float
+    max_z: float
     first_stamp: float
     last_stamp: float
 
@@ -62,12 +102,14 @@ class VictimTracker:
 
     def __init__(self, min_observations: int, cell_size: float = 0.1,
                  join_distance: float = 0.2, min_cell_frames: int = 2,
-                 match_distance: float = 1.0):
+                 match_distance: float = 1.0, shape: Optional[Dict[str, float]] = None):
         self.min_observations = int(min_observations)
         self.cell_size = float(cell_size)
         self.join_distance = float(join_distance)
         self.min_cell_frames = int(min_cell_frames)
         self.match_distance = float(match_distance)
+        #: Filtro de forma (claves de SHAPE_KEYS) o None para no exigir geometría.
+        self.shape = dict(shape) if shape else None
         self._cells: Dict[Tuple[int, int], _Cell] = {}
         self._frame = 0
         self._next_victim = 1
@@ -82,15 +124,20 @@ class VictimTracker:
             keys = np.floor(pts[:, :2] / self.cell_size).astype(int)
             uniq, inverse, counts = np.unique(keys, axis=0, return_inverse=True,
                                               return_counts=True)
-            sum_z = np.bincount(inverse.ravel(), weights=pts[:, 2])
-            for (i, j), n, zs in zip(map(tuple, uniq), counts, sum_z):
+            inverse = inverse.ravel()
+            sum_z = np.bincount(inverse, weights=pts[:, 2])
+            max_z = np.full(len(uniq), -np.inf)
+            np.maximum.at(max_z, inverse, pts[:, 2])
+            for (i, j), n, zs, zmax in zip(map(tuple, uniq), counts, sum_z, max_z):
                 cell = self._cells.get((i, j))
                 if cell is None:
-                    self._cells[(i, j)] = _Cell(int(n), {self._frame}, float(zs), stamp, stamp)
+                    self._cells[(i, j)] = _Cell(int(n), {self._frame}, float(zs), float(zmax),
+                                                stamp, stamp)
                 else:
                     cell.hits += int(n)
                     cell.frames.add(self._frame)
                     cell.sum_z += float(zs)
+                    cell.max_z = max(cell.max_z, float(zmax))
                     cell.last_stamp = stamp
         return self._rebuild()
 
@@ -122,11 +169,13 @@ class VictimTracker:
             x, y = (centers * weights[:, None]).sum(axis=0) / weights.sum()
             z = sum(c.sum_z for c in members) / weights.sum()
             frames = set().union(*(c.frames for c in members))
-            groups.append(Track(
+            track = Track(
                 track_id=label, position=(float(x), float(y), float(z)),
                 observations=len(frames),
                 first_stamp=min(c.first_stamp for c in members),
-                last_stamp=max(c.last_stamp for c in members), cells=len(members)))
+                last_stamp=max(c.last_stamp for c in members), cells=len(members))
+            self._measure(track, centers, weights, np.array([c.max_z for c in members]))
+            groups.append(track)
 
         newly = self._assign_ids(groups)
         self.tracks = groups
@@ -136,9 +185,10 @@ class VictimTracker:
         """Conserva los números de víctima ya asignados; numera las nuevas confirmadas."""
         newly = []
         free = dict(self._victims)
+        held = []
         # Primero los grupos con más evidencia, para que conserven su número en caso de duda.
         for group in sorted(groups, key=lambda g: -g.observations):
-            if group.observations < self.min_observations:
+            if group.observations < self.min_observations or not group.shape_ok:
                 continue
             best, best_d = None, self.match_distance
             for vid, (vx, vy) in free.items():
@@ -153,7 +203,54 @@ class VictimTracker:
                 self._next_victim += 1
                 newly.append(group)
             self._victims[group.victim_id] = group.position[:2]
+        # Víctimas confirmadas cuyo grupo solo ha crecido demasiado: se mantienen.
+        for group in groups:
+            if not group.oversize or group.observations < self.min_observations:
+                continue
+            for vid, (vx, vy) in list(free.items()):
+                d = np.hypot(group.cell_centers[:, 0] - vx, group.cell_centers[:, 1] - vy)
+                if d.min() <= 2 * self.cell_size:
+                    kept = Track(track_id=group.track_id, position=(vx, vy, group.position[2]),
+                                 observations=group.observations,
+                                 first_stamp=group.first_stamp, last_stamp=group.last_stamp,
+                                 cells=group.cells, victim_id=vid, length=group.length,
+                                 width=group.width, height=group.height,
+                                 profile_ratio=group.profile_ratio, shape_ok=False,
+                                 oversize=True)
+                    held.append(kept)
+                    del free[vid]
+        groups.extend(held)
         return newly
+
+    def _measure(self, track: Track, centers: np.ndarray, weights: np.ndarray,
+                 heights: np.ndarray) -> None:
+        """Largo, ancho, altura y perfil de alturas del grupo; aplica el filtro de forma."""
+        track.height = float(heights.max())
+        if len(centers) >= 2:
+            mean = np.average(centers, axis=0, weights=weights)
+            cov = np.cov((centers - mean).T, aweights=weights) if weights.sum() > 0 else None
+            if cov is not None and np.all(np.isfinite(cov)):
+                _, vecs = np.linalg.eigh(cov)
+                axis = vecs[:, -1]                       # eje principal (mayor varianza)
+            else:
+                axis = np.array([1.0, 0.0])
+            along = (centers - mean) @ axis
+            across = (centers - mean) @ np.array([-axis[1], axis[0]])
+            track.length = float(np.ptp(along) + self.cell_size)
+            track.width = float(np.ptp(across) + self.cell_size)
+            # Perfil: altura máxima en cada tercio del largo (silueta lateral del cuerpo).
+            edges = np.linspace(along.min(), along.max() + 1e-9, 4)
+            thirds = [heights[(along >= a) & (along < b)] for a, b in zip(edges[:-1], edges[1:])]
+            tops = [t.max() for t in thirds if len(t)]
+            if len(tops) == 3 and min(tops) > 0:
+                track.profile_ratio = float(max(tops) / min(tops))
+        else:
+            track.length = track.width = self.cell_size
+        track.cell_centers = centers
+        track.shape_ok = shape_matches(track, self.shape)
+        if not track.shape_ok and self.shape:
+            relaxed = {k: v for k, v in self.shape.items() if k not in ('max_length', 'max_width')}
+            track.oversize = shape_matches(track, relaxed)
 
     def confirmed(self) -> List[Track]:
         """Víctimas confirmadas, ordenadas por número."""
@@ -162,3 +259,86 @@ class VictimTracker:
     def tentative(self) -> List[Track]:
         """Grupos aún sin confirmar."""
         return [t for t in self.tracks if not t.confirmed]
+
+
+@dataclass
+class FusedVictim:
+    """Víctima publicada: une las confirmaciones de varios detectores en el mismo lugar."""
+
+    victim_id: int
+    position: Tuple[float, float, float]
+    sources: List[str]                   # detectores que la confirmaron
+    observations: int                    # máximo de capturas entre los detectores
+    confidence: float                    # máximo entre los detectores
+
+
+class VictimRegistry:
+    """
+    Une las víctimas confirmadas por cada detector y mantiene una numeración común.
+
+    Dos confirmaciones de detectores distintos a menos de merge_distance son la misma víctima
+    (posición: media ponderada por las observaciones). La fusión completa de evidencias de
+    signos de vida es la Fase 13; aquí solo se evita publicar dos veces la misma víctima.
+    """
+
+    def __init__(self, merge_distance: float = 1.0, match_distance: float = 1.0):
+        self.merge_distance = float(merge_distance)
+        self.match_distance = float(match_distance)
+        self._next = 1
+        self._last: Dict[int, Tuple[float, float]] = {}   # número → última posición conocida
+        self._confirmed_ids: Set[int] = set()
+        self.victims: List[FusedVictim] = []
+
+    def update(self, confirmed: Dict[str, List[Track]],
+               min_observations: int) -> Tuple[List[FusedVictim], List[int]]:
+        """Recalcula las víctimas; devuelve (nuevas, números que dejaron de estar confirmados)."""
+        entries = sorted(((name, t) for name, tracks in confirmed.items() for t in tracks),
+                         key=lambda e: -e[1].observations)
+        clusters: List[Dict] = []
+        for name, track in entries:
+            x, y, z = track.position
+            for cluster in clusters:
+                cx, cy = cluster['xy']
+                if math.hypot(x - cx, y - cy) < self.merge_distance:
+                    break
+            else:
+                cluster = {'xy': (x, y), 'sum': np.zeros(3), 'w': 0.0, 'sources': set(),
+                           'obs': 0, 'conf': 0.0}
+                clusters.append(cluster)
+            w = float(track.observations)
+            cluster['sum'] += w * np.array([x, y, z])
+            cluster['w'] += w
+            cluster['xy'] = tuple(cluster['sum'][:2] / cluster['w'])
+            cluster['sources'].add(name)
+            cluster['obs'] = max(cluster['obs'], track.observations)
+            cluster['conf'] = max(cluster['conf'], track.confidence(min_observations))
+
+        free = dict(self._last)
+        victims, newly = [], []
+        for cluster in sorted(clusters, key=lambda c: -c['obs']):
+            px, py = cluster['xy']
+            best, best_d = None, self.match_distance
+            for vid, (vx, vy) in free.items():
+                d = math.hypot(px - vx, py - vy)
+                if d < best_d:
+                    best, best_d = vid, d
+            if best is None:
+                best = self._next
+                self._next += 1
+            else:
+                del free[best]
+            # Nueva: número nuevo, o un número que no estaba confirmado (víctima retirada que
+            # vuelve a confirmarse).
+            is_new = best not in self._confirmed_ids
+            pos = cluster['sum'] / cluster['w']
+            victim = FusedVictim(best, (float(pos[0]), float(pos[1]), float(pos[2])),
+                                 sorted(cluster['sources']), cluster['obs'], cluster['conf'])
+            victims.append(victim)
+            if is_new:
+                newly.append(victim)
+        current = {v.victim_id for v in victims}
+        self._last.update({v.victim_id: v.position[:2] for v in victims})
+        self.victims = sorted(victims, key=lambda v: v.victim_id)
+        retracted = sorted(self._confirmed_ids - current)
+        self._confirmed_ids = current
+        return newly, retracted

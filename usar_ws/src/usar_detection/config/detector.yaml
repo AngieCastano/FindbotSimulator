@@ -2,12 +2,13 @@
 victim_detector:
   ros__parameters:
     # Signos de vida activos (cada uno es una clase registrada en usar_detection).
-    detectors: ["color_shape"]
+    detectors: ["color_shape", "human_shape"]
 
     rgb_topic: /camera/image
     depth_topic: /camera/depth_image
     camera_info_topic: /camera/camera_info
     global_frame: map
+    base_frame: base_footprint  # frame con z = altura sobre el suelo (detector de forma)
 
     processing_rate: 5.0        # Hz: imágenes procesadas por segundo (la cámara publica a 15)
     sync_slop: 0.05             # s: diferencia máxima entre la imagen RGB y la de profundidad
@@ -19,7 +20,13 @@ victim_detector:
     join_distance: 0.2          # m (D): celdas más cercanas pertenecen a la misma víctima
     min_observations: 5         # N: capturas distintas para confirmar una víctima
     match_distance: 1.0         # m: mantiene el número de una víctima entre actualizaciones
+    merge_distance: 1.0         # m: confirmaciones de detectores distintos más cercanas son la
+                                #   misma víctima (cada detector tiene su propio mapa de evidencia)
 
+    # Descarta la evidencia que cae en celdas desconocidas o fuera del /map del robot: tras un
+    # error momentáneo de pose de SLAM, una víctima puede proyectarse detrás de un muro.
+    require_known_map: true
+    map_topic: /map
     publish_debug_image: true   # /victims/debug_image (solo si hay suscriptores)
     log_dir: ""                 # carpeta del log CSV ("" = sin log); el launch la fija en results/
     log_prefix: victims
@@ -37,3 +44,28 @@ victim_detector:
       cluster_cell: 0.15        # m: rejilla lateral × profundidad para separar víctimas que en la
                                 #   imagen forman un único blob (una detrás de otra o casi pegadas)
       min_cluster_points: 30    # puntos mínimos de un grupo
+
+    # Signo de vida "forma humana" por geometría 3D (Fase 8): no usa el color. Ver
+    # docs/fase8_forma_humana.md. La cámara está a 0.12 m del suelo y mira al frente.
+    human_shape:
+      stride: 2                 # px: se procesa 1 de cada 4 píxeles
+      min_depth: 0.3            # m
+      max_depth: 5.0            # m
+      floor_height: 0.04        # m: por debajo es suelo (ruido de profundidad σ ≈ 7 mm)
+      max_victim_height: 0.32   # m: una víctima acostada mide ≈ 0.22 m; más alto = escombro alto
+      tall_cell: 0.1            # m: rejilla de columnas con puntos altos (base de escombros altos)
+      tall_dilation: 1          # celdas de margen alrededor de las columnas altas
+      min_verifiable_height: 0.45   # m: debe verse hasta esta altura sobre el objeto (descarta
+                                #   objetos tan cercanos que no se sabe si siguen hacia arriba)
+      cluster_cell: 0.15        # m: rejilla de agrupación en el plano del suelo
+      min_cluster_points: 40    # puntos mínimos de un grupo (tras el submuestreo)
+      max_cluster_extent: 2.4   # m: diagonal máxima de un grupo en una imagen
+      # Forma exigida al grupo en el mapa de evidencia para confirmar una víctima (1.7 × 0.6 m,
+      # cabeza y torso ≈ 0.2 m, piernas ≈ 0.14 m):
+      shape_min_length: 1.2     # m
+      shape_max_length: 2.4     # m (la evidencia acumulada se ensancha ≈ 0.2–0.3 m por el
+      shape_max_width: 1.1      #   error de pose de SLAM; las losas miden ≥ 0.9 m de ancho y
+                                #   además tienen altura uniforme)
+      shape_min_height: 0.15    # m (tablones y escombros muy bajos no lo alcanzan)
+      shape_max_height: 0.30    # m
+      shape_min_profile_ratio: 1.25   # altura del tercio más alto / del más bajo (silueta)

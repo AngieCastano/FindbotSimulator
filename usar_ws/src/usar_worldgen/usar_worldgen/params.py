@@ -6,6 +6,9 @@ from typing import Any, Dict, Optional, Tuple
 import yaml
 
 
+VICTIM_APPEARANCES = ('orange', 'dusty')
+
+
 @dataclass
 class WorldParams:
     """
@@ -37,6 +40,13 @@ class WorldParams:
     grid_resolution: float = 0.05
     # Distancia máxima desde una celda alcanzable hasta la víctima para considerarla alcanzable.
     victim_reach_distance: float = 1.0
+    # Aspecto de las víctimas: 'orange' (naranja distintivo, MVP) o 'dusty' (gris como los
+    # escombros, "cubiertas de polvo"): con 'dusty' el color no permite detectarlas.
+    victim_appearance: str = 'orange'
+    # Escombros bajos (tablones, losas, bloques) que se confunden geométricamente con una víctima
+    # acostada. Se generan con un flujo aleatorio aparte: con 0 el mundo no cambia.
+    n_low_debris: int = 0
+    low_debris_height_range: Tuple[float, float] = (0.08, 0.28)
     wall_height: float = 1.0
     wall_thickness: float = 0.2
     # Reintentos de generación completa (cada uno con una sub-semilla derivada).
@@ -59,8 +69,13 @@ class WorldParams:
             raise ValueError('obstacle_height_range debe cumplir 0 < min <= max')
         if not 0.0 <= self.box_ratio <= 1.0:
             raise ValueError('box_ratio debe estar en [0, 1]')
-        if self.n_obstacles < 0 or self.n_victims < 0:
-            raise ValueError('n_obstacles y n_victims no pueden ser negativos')
+        if self.n_obstacles < 0 or self.n_victims < 0 or self.n_low_debris < 0:
+            raise ValueError('n_obstacles, n_victims y n_low_debris no pueden ser negativos')
+        if self.victim_appearance not in VICTIM_APPEARANCES:
+            raise ValueError(f'victim_appearance debe ser uno de {VICTIM_APPEARANCES}')
+        lo, hi = self.low_debris_height_range
+        if not 0 < lo <= hi:
+            raise ValueError('low_debris_height_range debe cumplir 0 < min <= max')
         if self.robot_radius <= 0 or self.grid_resolution <= 0:
             raise ValueError('robot_radius y grid_resolution deben ser positivos')
         if self.spawn_clearance < self.robot_radius:
@@ -111,8 +126,11 @@ class WorldParams:
         self.size = tuple(float(v) for v in self.size)
         self.obstacle_size_range = tuple(float(v) for v in self.obstacle_size_range)
         self.obstacle_height_range = tuple(float(v) for v in self.obstacle_height_range)
+        self.low_debris_height_range = tuple(float(v) for v in self.low_debris_height_range)
+        self.victim_appearance = str(self.victim_appearance)
         self.robot_spawn = tuple(float(v) for v in self.robot_spawn)
-        for name in ('n_obstacles', 'n_victims', 'max_attempts', 'max_placement_tries'):
+        for name in ('n_obstacles', 'n_victims', 'n_low_debris', 'max_attempts',
+                     'max_placement_tries'):
             setattr(self, name, int(getattr(self, name)))
         for name in ('box_ratio', 'min_gap', 'spawn_clearance', 'robot_radius',
                      'grid_resolution', 'victim_reach_distance', 'wall_height',

@@ -14,7 +14,8 @@ from .generator import GeneratedWorld
 from .geometry import Box
 from .grid import GridSpec, rle_decode, rle_encode
 
-FORMAT_VERSION = 1
+# 2: escombros con 'category' (rubble / plank / slab / block) y víctimas con 'appearance'.
+FORMAT_VERSION = 2
 
 
 def build_ground_truth(world: GeneratedWorld) -> Dict[str, Any]:
@@ -26,7 +27,8 @@ def build_ground_truth(world: GeneratedWorld) -> Dict[str, Any]:
     obstacles = []
     for obs in world.obstacles:
         entry: Dict[str, Any] = {'id': obs.idx, 'type': obs.kind, 'x': obs.shape.x,
-                                 'y': obs.shape.y, 'yaw': obs.yaw, 'height': obs.height}
+                                 'y': obs.shape.y, 'yaw': obs.yaw, 'height': obs.height,
+                                 'category': obs.category}
         if isinstance(obs.shape, Box):
             entry.update(size_x=obs.shape.size_x, size_y=obs.shape.size_y)
         else:
@@ -35,7 +37,8 @@ def build_ground_truth(world: GeneratedWorld) -> Dict[str, Any]:
 
     victims = [{'id': v.idx, 'name': f'victim_{v.idx:02d}', 'x': v.shape.x, 'y': v.shape.y,
                 'yaw': v.shape.yaw, 'length': v.shape.size_x, 'width': v.shape.size_y,
-                'reach_distance': v.reach_distance} for v in world.victims]
+                'reach_distance': v.reach_distance, 'appearance': params.victim_appearance}
+               for v in world.victims]
 
     grid = world.grid
     return {

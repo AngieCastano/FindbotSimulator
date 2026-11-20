@@ -1,0 +1,9 @@
+# Variante "dusty" (Fase 8): víctimas cubiertas de polvo (grises, sin color distintivo) y
+# escombros bajos que se parecen a una víctima acostada. Sirve para evaluar los signos de vida
+# que no dependen del color (forma humana, calor, ...).
+# Uso: ros2 launch usar_bringup mission.launch.py seed:=42 world_params:=dusty
+#      (el mundo se guarda en worlds/seed42_dusty/)
+# Los demás parámetros toman los valores de default_params.yaml.
+victim_appearance: dusty
+n_low_debris: 10
+low_debris_height_range: [0.08, 0.28]

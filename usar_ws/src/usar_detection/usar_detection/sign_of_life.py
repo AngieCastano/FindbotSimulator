@@ -23,6 +23,9 @@ class Observation:
     k: Sequence[float]                   # matriz intrínseca 3×3 en fila (camera_info.k)
     stamp_sec: float = 0.0
     frame_id: str = ''
+    #: Transformación 4×4 base del robot ← sensor (base_footprint: z hacia arriba, suelo en z=0).
+    #: La necesitan los detectores que razonan con la altura sobre el suelo (forma humana).
+    sensor_to_base: Optional[np.ndarray] = None
 
 
 @dataclass
@@ -54,6 +57,14 @@ class SignOfLifeDetector(ABC):
 
     def debug_mask(self) -> Optional[np.ndarray]:
         """Máscara de la última detección, para visualización (opcional)."""
+        return None
+
+    def group_shape(self) -> Optional[Dict[str, float]]:
+        """
+        Filtro de forma que el mapa de evidencia exige a un grupo para confirmarlo (opcional).
+
+        Claves: ver usar_detection.tracker.SHAPE_KEYS. None = sin filtro.
+        """
         return None
 
 

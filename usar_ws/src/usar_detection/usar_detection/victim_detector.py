@@ -4,6 +4,7 @@ Nodo victim_detector: detecta víctimas con la cámara RGB-D y las ubica en el m
 Entradas (solo sensores y estimación propia del robot):
   /camera/image, /camera/depth_image, /camera/camera_info
   TF map → camera_optical_frame (SLAM + modelo del robot)
+  /map (mapa del propio robot): descarta evidencia en celdas desconocidas
 Salidas:
   /victims/markers     (visualization_msgs/MarkerArray) víctimas confirmadas y tentativas
   /victims/detections  (geometry_msgs/PoseArray, frame map) víctimas confirmadas
@@ -11,7 +12,9 @@ Salidas:
   log CSV en log_dir   (tiempo, víctima, posición estimada, observaciones, confianza)
 
 Los detectores de signos de vida se eligen con el parámetro `detectors`; cada uno lee sus
-parámetros con el prefijo de su nombre (p. ej. color_shape.hsv_lower).
+parámetros con el prefijo de su nombre (p. ej. color_shape.hsv_lower) y acumula evidencia en su
+propio mapa (con el filtro de forma que exija el detector). Un registro común une las víctimas
+confirmadas por varios detectores en el mismo lugar y les da una numeración única.
 Regla de diseño: este nodo NUNCA lee ground_truth.yaml ni poses de Gazebo.
 """
 
@@ -23,19 +26,22 @@ import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Pose, PoseArray
 import message_filters
+from nav_msgs.msg import OccupancyGrid
 import numpy as np
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, qos_profile_sensor_data, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import ColorRGBA
 import tf2_ros
 from usar_detection import color_detector  # noqa: F401  (registra ColorShapeDetector)
+from usar_detection import human_shape_detector  # noqa: F401  (registra HumanShapeDetector)
+from usar_detection.map_filter import known_cells_mask
 from usar_detection.sign_of_life import create_detector, Observation
-from usar_detection.tracker import VictimTracker
+from usar_detection.tracker import VictimRegistry, VictimTracker
 from visualization_msgs.msg import Marker, MarkerArray
 
 PARAMS = {
@@ -44,6 +50,7 @@ PARAMS = {
     'depth_topic': '/camera/depth_image',
     'camera_info_topic': '/camera/camera_info',
     'global_frame': 'map',
+    'base_frame': 'base_footprint',
     'processing_rate': 5.0,
     'sync_slop': 0.05,
     'tf_tolerance': 0.1,
@@ -51,12 +58,18 @@ PARAMS = {
     'join_distance': 0.2,
     'min_cell_frames': 2,
     'match_distance': 1.0,
+    'merge_distance': 1.0,
     'min_observations': 5,
+    'require_known_map': True,
+    'map_topic': '/map',
     'publish_debug_image': True,
     'log_dir': '',
     'log_prefix': 'victims',
 }
-CSV_HEADER = ['event', 'sim_time', 'victim_id', 'x', 'y', 'z', 'observations', 'confidence']
+CSV_HEADER = ['event', 'sim_time', 'victim_id', 'x', 'y', 'z', 'observations', 'confidence',
+              'sources']
+#: Color (RGB) de la máscara de cada detector en la imagen de depuración.
+DEBUG_COLORS = {'color_shape': (0, 127, 127), 'human_shape': (127, 0, 127)}
 
 
 def quaternion_matrix(q):
@@ -68,6 +81,18 @@ def quaternion_matrix(q):
         [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
 
 
+#: Nombre corto de cada detector en la etiqueta de los marcadores.
+SOURCE_LABELS = {'color_shape': 'color', 'human_shape': 'forma'}
+
+
+class _Retracted:
+    """Fila de log de una víctima retirada (solo el número)."""
+
+    def __init__(self, victim_id):
+        self.victim_id, self.position = victim_id, (float('nan'),) * 3
+        self.observations, self.confidence, self.sources = 0, 0.0, []
+
+
 class VictimDetector(Node):
     """Ejecuta los detectores de signos de vida y confirma víctimas en el mapa."""
 
@@ -77,10 +102,16 @@ class VictimDetector(Node):
         self.p = {name: self._param(name, default) for name, default in PARAMS.items()}
         self.detectors = [create_detector(name, self._prefixed(name))
                           for name in self.p['detectors']]
-        self.tracker = VictimTracker(
-            self.p['min_observations'], cell_size=self.p['evidence_cell'],
-            join_distance=self.p['join_distance'], min_cell_frames=self.p['min_cell_frames'],
-            match_distance=self.p['match_distance'])
+        self.trackers = {
+            det.name: VictimTracker(
+                self.p['min_observations'], cell_size=self.p['evidence_cell'],
+                join_distance=self.p['join_distance'], min_cell_frames=self.p['min_cell_frames'],
+                match_distance=self.p['match_distance'], shape=det.group_shape())
+            for det in self.detectors}
+        self.registry = VictimRegistry(self.p['merge_distance'], self.p['match_distance'])
+        self.sensor_to_base = None
+        self.map_msg = None
+        self.points_outside_map = 0
         self.bridge = CvBridge()
         self.camera_k = None
         self.last_processed = None
@@ -100,6 +131,11 @@ class VictimDetector(Node):
         self.sync = message_filters.ApproximateTimeSynchronizer(
             [rgb_sub, depth_sub], queue_size=5, slop=self.p['sync_slop'])
         self.sync.registerCallback(self._on_images)
+        if self.p['require_known_map']:
+            latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                 reliability=ReliabilityPolicy.RELIABLE)
+            self.create_subscription(OccupancyGrid, self.p['map_topic'],
+                                     lambda m: setattr(self, 'map_msg', m), latched)
 
         self.marker_pub = self.create_publisher(MarkerArray, '/victims/markers', 10)
         self.pose_pub = self.create_publisher(PoseArray, '/victims/detections', 10)
@@ -132,14 +168,14 @@ class VictimDetector(Node):
         stream.flush()
         return path, (stream, writer)
 
-    def _log_track(self, event, track, sim_time):
+    def _log_victim(self, event, victim, sim_time):
         if self._log is None:
             return
         stream, writer = self._log
-        x, y, z = track.position
-        writer.writerow([event, f'{sim_time:.2f}', track.victim_id, f'{x:.3f}', f'{y:.3f}',
-                         f'{z:.3f}', track.observations,
-                         f'{track.confidence(self.p["min_observations"]):.2f}'])
+        x, y, z = victim.position
+        writer.writerow([event, f'{sim_time:.2f}', victim.victim_id, f'{x:.3f}', f'{y:.3f}',
+                         f'{z:.3f}', victim.observations, f'{victim.confidence:.2f}',
+                         '+'.join(victim.sources)])
         stream.flush()
 
     # ------------------------------------------------------------------ procesamiento
@@ -172,6 +208,20 @@ class VictimDetector(Node):
             return None
         return tf
 
+    def _base_transform(self, frame_id):
+        """Matriz 4×4 base ← cámara (fija: se consulta una vez)."""
+        if self.sensor_to_base is None:
+            try:
+                tf = self.tf_buffer.lookup_transform(self.p['base_frame'], frame_id, Time())
+            except tf2_ros.TransformException:
+                return None
+            m = np.eye(4)
+            m[:3, :3] = quaternion_matrix(tf.transform.rotation)
+            m[:3, 3] = [tf.transform.translation.x, tf.transform.translation.y,
+                        tf.transform.translation.z]
+            self.sensor_to_base = m
+        return self.sensor_to_base
+
     def _tf_failed(self, error):
         self.tf_failures += 1
         if self.tf_failures == 1:
@@ -181,9 +231,11 @@ class VictimDetector(Node):
         """Resumen periódico del procesamiento (diagnóstico)."""
         self.get_logger().info(
             f'Imágenes: {self.pairs} pares recibidos, {self.frames} procesados, '
-            f'{self.tf_failures} sin TF; {self.detections} detecciones; '
-            f'{len(self.tracker.confirmed())} víctimas confirmadas, '
-            f'{len(self.tracker.tentative())} tentativas')
+            f'{self.tf_failures} sin TF; {self.detections} detecciones '
+            f'({self.points_outside_map} puntos fuera del mapa conocido); '
+            f'{len(self.registry.victims)} víctimas confirmadas; por detector: ' + ', '.join(
+                f'{name} {len(t.confirmed())} confirmadas/{len(t.tentative())} tentativas'
+                for name, t in self.trackers.items()))
 
     def _on_images(self, rgb_msg, depth_msg):
         self.pairs += 1
@@ -202,7 +254,8 @@ class VictimDetector(Node):
         rgb = self.bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='rgb8')
         depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='32FC1')
         obs = Observation(rgb=rgb, depth=depth, k=self.camera_k, stamp_sec=sec,
-                          frame_id=rgb_msg.header.frame_id)
+                          frame_id=rgb_msg.header.frame_id,
+                          sensor_to_base=self._base_transform(rgb_msg.header.frame_id))
         rot = quaternion_matrix(tf.transform.rotation)
         trans = np.array([tf.transform.translation.x, tf.transform.translation.y,
                           tf.transform.translation.z])
@@ -211,19 +264,41 @@ class VictimDetector(Node):
             detections = detector.detect(obs)
             self.detections += len(detections)
             all_detections.extend(detections)
-        sensor_points = [d.points if d.points is not None else np.array([d.point])
-                         for d in all_detections]
-        points = (np.vstack(sensor_points) @ rot.T + trans) if sensor_points \
-            else np.zeros((0, 3))
-        for track in self.tracker.update(points, sec):
-            x, y, _ = track.position
+            sensor_points = [d.points if d.points is not None else np.array([d.point])
+                             for d in detections]
+            points = (np.vstack(sensor_points) @ rot.T + trans) if sensor_points \
+                else np.zeros((0, 3))
+            points = self._in_known_map(points)
+            self.trackers[detector.name].update(points, sec)
+        newly, retracted = self.registry.update(
+            {name: t.confirmed() for name, t in self.trackers.items()},
+            self.p['min_observations'])
+        for victim in newly:
+            x, y, _ = victim.position
             self.get_logger().info(
-                f'Víctima {track.victim_id} confirmada en ({x:.2f}, {y:.2f}) '
-                f'tras {track.observations} observaciones')
-            self._log_track('confirmed', track, sec)
+                f'Víctima {victim.victim_id} confirmada en ({x:.2f}, {y:.2f}) por '
+                f'{"+".join(victim.sources)} tras {victim.observations} observaciones')
+            self._log_victim('confirmed', victim, sec)
+        for vid in retracted:
+            self.get_logger().info(f'Víctima {vid} retirada: ya no la confirma ningún detector '
+                                   '(su grupo dejó de cumplir la forma o se unió a otro)')
+            self._log_victim('retracted', _Retracted(vid), sec)
         self._publish(rgb_msg.header.stamp)
         if self.p['publish_debug_image'] and self.debug_pub.get_subscription_count() > 0:
             self._publish_debug(rgb, all_detections, rgb_msg.header)
+
+    def _in_known_map(self, points):
+        """Puntos que caen en celdas conocidas del /map (sin mapa aún: se descartan todos)."""
+        if not self.p['require_known_map'] or len(points) == 0:
+            return points
+        if self.map_msg is None:
+            return points[:0]
+        info = self.map_msg.info
+        keep = known_cells_mask(points, self.map_msg.data, info.origin.position.x,
+                                info.origin.position.y, info.resolution, info.width,
+                                info.height)
+        self.points_outside_map += int((~keep).sum())
+        return points[keep]
 
     # ------------------------------------------------------------------ salidas
     def _publish(self, stamp):
@@ -231,7 +306,6 @@ class VictimDetector(Node):
         markers = [Marker(action=Marker.DELETEALL)]
         poses = PoseArray()
         poses.header.frame_id, poses.header.stamp = frame, stamp
-        n_min = self.p['min_observations']
 
         def marker(ns, mid, mtype, xyz, scale, color):
             m = Marker()
@@ -243,23 +317,26 @@ class VictimDetector(Node):
             m.color = ColorRGBA(r=color[0], g=color[1], b=color[2], a=color[3])
             return m
 
-        for track in self.tracker.confirmed():
-            x, y, _ = track.position
-            markers.append(marker('victims', track.victim_id, Marker.SPHERE, (x, y, 0.3), 0.45,
+        for victim in self.registry.victims:
+            x, y, _ = victim.position
+            markers.append(marker('victims', victim.victim_id, Marker.SPHERE, (x, y, 0.3), 0.45,
                                   (1.0, 0.1, 0.1, 0.8)))
-            label = marker('labels', track.victim_id, Marker.TEXT_VIEW_FACING, (x, y, 0.9),
+            label = marker('labels', victim.victim_id, Marker.TEXT_VIEW_FACING, (x, y, 0.9),
                            0.3, (1.0, 1.0, 1.0, 1.0))
-            label.text = (f'Víctima {track.victim_id} '
-                          f'({track.confidence(n_min) * 100:.0f} %)')
+            label.text = (f'Víctima {victim.victim_id} ({victim.confidence * 100:.0f} %, '
+                          f'{"+".join(SOURCE_LABELS.get(s, s) for s in victim.sources)})')
             markers.append(label)
             pose = Pose()
             pose.position.x, pose.position.y = x, y
             pose.orientation.w = 1.0
             poses.poses.append(pose)
-        for track in self.tracker.tentative():
-            x, y, _ = track.position
-            markers.append(marker('tentative', track.track_id, Marker.SPHERE, (x, y, 0.2), 0.2,
-                                  (0.7, 0.7, 0.7, 0.6)))
+        mid = 0
+        for tracker in self.trackers.values():
+            for track in tracker.tentative():
+                x, y, _ = track.position
+                mid += 1
+                markers.append(marker('tentative', mid, Marker.SPHERE, (x, y, 0.2), 0.2,
+                                      (0.7, 0.7, 0.7, 0.6)))
         self.marker_pub.publish(MarkerArray(markers=markers))
         self.pose_pub.publish(poses)
 
@@ -268,7 +345,8 @@ class VictimDetector(Node):
         for detector in self.detectors:
             mask = detector.debug_mask()
             if mask is not None:
-                overlay[mask > 0] = (0.5 * overlay[mask > 0] + [0, 127, 127]).astype(np.uint8)
+                tint = DEBUG_COLORS.get(detector.name, (127, 127, 0))
+                overlay[mask > 0] = (0.5 * overlay[mask > 0] + tint).astype(np.uint8)
         for det in detections:
             u, v = int(det.pixel[0]), int(det.pixel[1])
             cv2.drawMarker(overlay, (u, v), (255, 0, 0), cv2.MARKER_CROSS, 20, 2)
@@ -281,13 +359,13 @@ class VictimDetector(Node):
     def destroy_node(self):
         """Escribe el resumen final de víctimas en el log antes de cerrar."""
         sim_time = self.last_processed or 0.0
-        for track in self.tracker.confirmed():
-            self._log_track('final', track, sim_time)
+        for victim in self.registry.victims:
+            self._log_victim('final', victim, sim_time)
         if self._log is not None:
             self._log[0].close()
         # Al cerrar con Ctrl+C el contexto de ROS puede estar ya invalidado: el resumen va también
         # a la salida estándar para no perderlo.
-        print(f'[victim_detector] {len(self.tracker.confirmed())} víctimas confirmadas; '
+        print(f'[victim_detector] {len(self.registry.victims)} víctimas confirmadas; '
               f'log: {self.log_path or "desactivado"}', flush=True)
         super().destroy_node()
 

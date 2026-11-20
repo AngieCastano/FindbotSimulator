@@ -37,6 +37,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--obstacle-size-range', type=float, nargs=2, metavar=('MIN', 'MAX'),
                         help='rango del lado de cajas / diámetro de cilindros en metros')
     parser.add_argument('--n-victims', type=int, help='número de víctimas')
+    parser.add_argument('--victim-appearance', choices=('orange', 'dusty'),
+                        help="aspecto de las víctimas ('dusty': grises, sin color distintivo)")
+    parser.add_argument('--n-low-debris', type=int,
+                        help='número de escombros bajos (tablones, losas, bloques)')
     parser.add_argument('--robot-spawn', type=float, nargs=3, metavar=('X', 'Y', 'YAW'),
                         help='pose de aparición del robot (m, m, rad)')
     parser.add_argument('--out', help='directorio de salida (por defecto worlds/seed<SEMILLA>)')
@@ -56,6 +60,8 @@ def params_from_args(args: argparse.Namespace) -> WorldParams:
         'obstacle_size_range': args.obstacle_size_range,
         'n_victims': args.n_victims,
         'robot_spawn': args.robot_spawn,
+        'victim_appearance': args.victim_appearance,
+        'n_low_debris': args.n_low_debris,
     })
     params.validate()
     return params

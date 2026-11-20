@@ -210,3 +210,14 @@ def test_escape_prefers_straight_motion_without_turning():
     heading, forward = fc.escape_direction(cost, info, 0.0, 0.0, yaw=0.0,
                                            probe_distances=(0.15, 0.3, 0.45))
     assert not forward and abs(abs(heading) - math.pi) < 1e-6
+
+
+def test_straight_escape_moves_away_from_obstacle():
+    """Escape de último recurso: recto, hacia el lado opuesto al obstáculo, sin girar."""
+    info = fc.GridInfo(0.05, -1.0, -1.0, 40, 40)
+    cost = np.zeros((40, 40), dtype=np.int16)
+    cost[:, 22:] = 100                       # obstáculo al este
+    assert not fc.straight_escape_forward(cost, info, 0.0, 0.0, 0.0, (0.15, 0.3))
+    assert fc.straight_escape_forward(cost, info, 0.0, 0.0, math.pi, (0.15, 0.3))
+    free = np.zeros((40, 40), dtype=np.int16)
+    assert fc.straight_escape_forward(free, info, 0.0, 0.0, 0.3, (0.15, 0.3))

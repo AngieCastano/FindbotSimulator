@@ -19,26 +19,13 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from usar_worldgen.cli import main as generate_world_cli
 from usar_worldgen.spawn import load_spawn, SPAWN_FILE
+from usar_worldgen.worlds import ensure_world
 import xacro
 
 ROBOT_NAME = 'findbot'
 # Altura de aparición sobre el suelo para evitar interpenetración inicial.
 SPAWN_Z = 0.02
-
-
-def _ensure_world(seed: int, worlds_dir: str, world_params: str) -> str:
-    """Devuelve el directorio del mundo de la semilla; lo genera si falta."""
-    world_dir = os.path.join(worlds_dir, f'seed{seed}')
-    required = (os.path.join(world_dir, 'world.sdf'), os.path.join(world_dir, SPAWN_FILE))
-    if not all(os.path.isfile(path) for path in required):
-        args = ['--seed', str(seed), '--out', world_dir]
-        if world_params:
-            args += ['--params', world_params]
-        if generate_world_cli(args) != 0:
-            raise RuntimeError(f'No se pudo generar el mundo de la semilla {seed}')
-    return world_dir
 
 
 def _launch_setup(context):
@@ -49,7 +36,8 @@ def _launch_setup(context):
     gui = LaunchConfiguration('gui').perform(context).lower() == 'true'
     robot_params = LaunchConfiguration('robot_params').perform(context)
 
-    world_dir = _ensure_world(seed, worlds_dir, world_params)
+    # worlds/seed<N>/ o, con world_params:=<nombre>, worlds/seed<N>_<nombre>/ (se genera si falta)
+    world_dir = ensure_world(seed, worlds_dir, world_params)
     world_sdf = os.path.join(world_dir, 'world.sdf')
     spawn = load_spawn(os.path.join(world_dir, SPAWN_FILE))
 

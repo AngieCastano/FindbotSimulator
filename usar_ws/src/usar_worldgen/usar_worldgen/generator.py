@@ -31,6 +31,15 @@ RUBBLE_PALETTE = (
     (0.65, 0.63, 0.60),
 )
 
+# Escombros bajos que se confunden geométricamente con una víctima acostada (Fase 8): huella en
+# planta (rango del largo, rango del ancho) en m. La altura sale de low_debris_height_range.
+#   plank: tablón largo y estrecho; slab: losa ancha; block: bloque pequeño.
+LOW_DEBRIS_TYPES = (
+    ('plank', (1.2, 2.2), (0.12, 0.25)),
+    ('slab', (0.9, 1.5), (0.9, 1.5)),
+    ('block', (0.25, 0.5), (0.25, 0.5)),
+)
+
 # Decimales con que se redondean todas las magnitudes generadas (reproducibilidad textual).
 DECIMALS = 4
 
@@ -49,11 +58,12 @@ class Obstacle:
     yaw: float
     height: float
     color: Tuple[float, float, float]
+    category: str = 'rubble'  # 'rubble' o el tipo de escombro bajo (plank, slab, block)
 
 
 @dataclass
 class Victim:
-    """Víctima simulada (humanoide acostado de color naranja)."""
+    """Víctima simulada (humanoide acostado; color según params.victim_appearance)."""
 
     idx: int
     shape: Box
@@ -108,6 +118,19 @@ def _sample_obstacle(rng: np.random.Generator, params: WorldParams, idx: int) ->
     return Obstacle(idx, kind, shape, yaw, height, color)
 
 
+def _sample_low_debris(rng: np.random.Generator, params: WorldParams, idx: int) -> Obstacle:
+    """Muestrea un escombro bajo (tablón, losa o bloque) con posición, tamaño y yaw aleatorios."""
+    x_min, x_max, y_min, y_max = params.bounds
+    kind_idx = int(rng.integers(len(LOW_DEBRIS_TYPES)))
+    category, (l_lo, l_hi), (w_lo, w_hi) = LOW_DEBRIS_TYPES[kind_idx]
+    x, y = _r(rng.uniform(x_min, x_max)), _r(rng.uniform(y_min, y_max))
+    yaw = _r(rng.uniform(-math.pi, math.pi))
+    height = _r(rng.uniform(*params.low_debris_height_range))
+    shape = Box(x, y, _r(rng.uniform(l_lo, l_hi)), _r(rng.uniform(w_lo, w_hi)), yaw)
+    color = RUBBLE_PALETTE[int(rng.integers(len(RUBBLE_PALETTE)))]
+    return Obstacle(idx, 'box', shape, yaw, height, color, category)
+
+
 def _sample_victim(rng: np.random.Generator, params: WorldParams, idx: int) -> Victim:
     """Muestrea la pose en planta de una víctima."""
     x_min, x_max, y_min, y_max = params.bounds
@@ -123,6 +146,47 @@ def _is_free(shape: Shape, placed: List[Shape], params: WorldParams, spawn_zone:
     if shapes_intersect(shape, spawn_zone):
         return False
     return not any(shapes_intersect(shape, other, params.min_gap) for other in placed)
+
+
+def _place_low_debris(params: WorldParams, sub_seed: int, debris_try: int,
+                      placed: List[Shape], spawn_zone: Circle
+                      ) -> Tuple[Optional[List[Obstacle]], str]:
+    """Coloca los escombros bajos sin solapes; (None, motivo) si no caben."""
+    rng = np.random.Generator(np.random.PCG64(np.random.SeedSequence([sub_seed, 1, debris_try])))
+    debris: List[Obstacle] = []
+    shapes = list(placed)
+    for k in range(params.n_low_debris):
+        idx = params.n_obstacles + k
+        for _ in range(params.max_placement_tries):
+            candidate = _sample_low_debris(rng, params, idx)
+            if _is_free(candidate.shape, shapes, params, spawn_zone):
+                debris.append(candidate)
+                shapes.append(candidate.shape)
+                break
+        else:
+            return None, (f'no se pudo colocar el escombro bajo {k} tras '
+                          f'{params.max_placement_tries} intentos')
+    return debris, ''
+
+
+def _check_reachability(params: WorldParams, shapes: List[Shape], victims: List[Victim]
+                        ) -> Tuple[GridSpec, np.ndarray, str]:
+    """Área explorable y alcanzabilidad de las víctimas; motivo del fallo o ''."""
+    spawn_x, spawn_y, _ = params.robot_spawn
+    spec = GridSpec.from_bounds(params.bounds, params.grid_resolution)
+    clearance = clearance_map(spec, params.bounds, shapes)
+    explorable = explorable_mask(spec, clearance, params.robot_radius, (spawn_x, spawn_y))
+    if not explorable.any():
+        return spec, explorable, 'el spawn no es transitable para el robot'
+    xg, yg = spec.cell_centers()
+    for victim in victims:
+        dist = point_distance(victim.shape, xg, yg)
+        victim.reach_distance = _r(dist[explorable].min())
+        if victim.reach_distance > params.victim_reach_distance:
+            return spec, explorable, (
+                f'víctima {victim.idx} inalcanzable (celda alcanzable más cercana a '
+                f'{victim.reach_distance:.2f} m)')
+    return spec, explorable, ''
 
 
 def _try_generate(params: WorldParams, attempt: int,
@@ -157,19 +221,21 @@ def _try_generate(params: WorldParams, attempt: int,
             return None, (f'no se pudo colocar la víctima {idx} tras '
                           f'{params.max_placement_tries} intentos')
 
-    spec = GridSpec.from_bounds(params.bounds, params.grid_resolution)
-    clearance = clearance_map(spec, params.bounds, placed)
-    explorable = explorable_mask(spec, clearance, params.robot_radius, (spawn_x, spawn_y))
-    if not explorable.any():
-        return None, 'el spawn no es transitable para el robot'
-
-    xg, yg = spec.cell_centers()
-    for victim in victims:
-        dist = point_distance(victim.shape, xg, yg)
-        victim.reach_distance = _r(dist[explorable].min())
-        if victim.reach_distance > params.victim_reach_distance:
-            return None, (f'víctima {victim.idx} inalcanzable (celda alcanzable más cercana a '
-                          f'{victim.reach_distance:.2f} m)')
+    # Escombros bajos con un flujo aleatorio propio: con n_low_debris = 0 no se consume ningún
+    # número aleatorio extra y el mundo es idéntico al de versiones anteriores. Si dejan alguna
+    # víctima inalcanzable se vuelven a sortear solo ellos, sin cambiar el resto del escenario.
+    reason = ''
+    for debris_try in range(params.max_attempts if params.n_low_debris else 1):
+        debris, reason = _place_low_debris(params, sub_seed, debris_try, placed, spawn_zone)
+        if debris is None:
+            continue
+        spec, explorable, reason = _check_reachability(
+            params, placed + [d.shape for d in debris], victims)
+        if not reason:
+            obstacles = obstacles + debris
+            break
+    else:
+        return None, reason
 
     world = GeneratedWorld(params, attempt, sub_seed, obstacles, victims, spec, explorable)
     return world, ''

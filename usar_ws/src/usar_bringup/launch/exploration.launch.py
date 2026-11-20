@@ -22,6 +22,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, Opaq
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from usar_worldgen.worlds import resolve_world_params
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'rviz_config']
 
@@ -48,12 +49,14 @@ def generate_launch_description():
         if LaunchConfiguration('detection').perform(context).lower() != 'true':
             return []
         seed = LaunchConfiguration('seed').perform(context)
+        _, tag = resolve_world_params(LaunchConfiguration('world_params').perform(context))
+        variant = f'_{tag}' if tag else ''
         return [Node(package='usar_detection', executable='victim_detector',
                      name='victim_detector', output='screen',
                      parameters=[LaunchConfiguration('detector_params').perform(context),
                                  {'use_sim_time': True,
                                   'log_dir': LaunchConfiguration('results_dir').perform(context),
-                                  'log_prefix': f'victims_seed{seed}'}])]
+                                  'log_prefix': f'victims_seed{seed}{variant}'}])]
 
     # <ws>/install/usar_bringup/share/usar_bringup → <repo>/results (junto a usar_ws)
     default_results = str(Path(bringup_share).resolve().parents[3].parent / 'results')

@@ -21,7 +21,9 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from .geometry import Box  # noqa: E402
 from .ground_truth import explorable_from_ground_truth, load_ground_truth  # noqa: E402
-from .sdf_writer import VICTIM_RGB  # noqa: E402
+from .sdf_writer import VICTIM_MATERIALS  # noqa: E402
+
+LOW_DEBRIS_RGB = '#c9b38a'   # escombros bajos (tablones, losas, bloques)
 
 
 def render_top_view(gt: dict, out_path: str, dpi: int = 150) -> None:
@@ -47,12 +49,17 @@ def render_top_view(gt: dict, out_path: str, dpi: int = 150) -> None:
             patch = patches.Polygon(corners, closed=True)
         else:
             patch = patches.Circle((obs['x'], obs['y']), obs['radius'])
-        patch.set(facecolor='#7a7670', edgecolor='#3a3836', lw=0.8, zorder=2)
+        if obs.get('category', 'rubble') == 'rubble':
+            patch.set(facecolor='#7a7670', edgecolor='#3a3836', lw=0.8, zorder=2)
+        else:
+            patch.set(facecolor=LOW_DEBRIS_RGB, edgecolor='#3a3836', lw=0.8, hatch='///',
+                      zorder=2)
         ax.add_patch(patch)
 
+    victim_rgb = VICTIM_MATERIALS[params.get('victim_appearance', 'orange')][0]
     for vic in gt['victims']:
         corners = Box(vic['x'], vic['y'], vic['length'], vic['width'], vic['yaw']).corners()
-        ax.add_patch(patches.Polygon(corners, closed=True, facecolor=VICTIM_RGB,
+        ax.add_patch(patches.Polygon(corners, closed=True, facecolor=victim_rgb,
                                      edgecolor='#7a2e00', lw=1.0, zorder=3))
         ax.annotate(f"V{vic['id']}", (vic['x'], vic['y']), xytext=(6, 6),
                     textcoords='offset points', fontsize=9, fontweight='bold',
@@ -70,10 +77,12 @@ def render_top_view(gt: dict, out_path: str, dpi: int = 150) -> None:
     legend = [
         patches.Patch(facecolor='#d8f0d8', edgecolor='#999999', label='Área explorable'),
         patches.Patch(facecolor='#7a7670', label='Escombros'),
-        patches.Patch(facecolor=VICTIM_RGB, label='Víctimas'),
+        patches.Patch(facecolor=LOW_DEBRIS_RGB, hatch='///', label='Escombros bajos'),
+        patches.Patch(facecolor=victim_rgb, edgecolor='#7a2e00',
+                      label=f"Víctimas ({params.get('victim_appearance', 'orange')})"),
         patches.Patch(facecolor='#1f5fbf', label='Spawn del robot'),
     ]
-    ax.legend(handles=legend, loc='upper center', bbox_to_anchor=(0.5, -0.07), ncol=4,
+    ax.legend(handles=legend, loc='upper center', bbox_to_anchor=(0.5, -0.07), ncol=3,
               frameon=False, fontsize=9)
     area = gt['explorable_area']['area_m2']
     ax.set_title(f"Escenario semilla {gt['seed']} — {len(gt['obstacles'])} escombros, "

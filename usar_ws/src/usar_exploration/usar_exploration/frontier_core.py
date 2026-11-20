@@ -250,3 +250,18 @@ def escape_direction(cost: np.ndarray, info: GridInfo, x: float, y: float, yaw: 
         if best is None or key < best[0]:
             best = (key, heading, abs(rel) <= math.pi / 2)
     return math.atan2(math.sin(best[1]), math.cos(best[1])), best[2]
+
+
+def straight_escape_forward(cost: np.ndarray, info: GridInfo, x: float, y: float, yaw: float,
+                            probe_distances: Sequence[float], unknown_cost: int = 50) -> bool:
+    """
+    Sentido (True = adelante) de un escape en línea recta, sin girar.
+
+    Compara el costo máximo del costmap en los puntos a probe_distances por delante y por detrás
+    del robot y elige el menor (a igualdad, adelante: ahí mira la cámara).
+    """
+    def score(sign):
+        samples = [cost_at(cost, info, x + sign * d * math.cos(yaw), y + sign * d * math.sin(yaw))
+                   for d in probe_distances]
+        return max(unknown_cost if c < 0 else c for c in samples)
+    return score(1.0) <= score(-1.0)

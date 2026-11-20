@@ -15,6 +15,9 @@ spawn_clearance: 1.0            # zona libre alrededor del spawn
 robot_radius: 0.30              # = robot_radius de Nav2 (radio físico 0.25 m + 5 cm de margen)
 grid_resolution: 0.05           # igual a la resolución del /map de slam_toolbox
 victim_reach_distance: 1.0      # distancia máx. desde zona alcanzable a la víctima
+victim_appearance: orange       # orange (MVP) | dusty (grises "cubiertas de polvo")
+n_low_debris: 0                 # escombros bajos (tablones, losas, bloques); 0 = mundo del MVP
+low_debris_height_range: [0.08, 0.28]  # alturas parecidas a las de una víctima (≈ 0.22 m)
 wall_height: 1.0
 wall_thickness: 0.2
 max_attempts: 50                # reintentos con sub-semilla

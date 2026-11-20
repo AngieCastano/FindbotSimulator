@@ -7,6 +7,7 @@ Uso:
     ros2 launch usar_bringup mission.launch.py seed:=42
     ros2 launch usar_bringup mission.launch.py seed:=7 headless:=true     # sin Gazebo ni RViz
     ros2 launch usar_bringup mission.launch.py seed:=42 quick:=true       # prueba de 5 min
+    ros2 launch usar_bringup mission.launch.py seed:=42 world_params:=dusty  # víctimas grises
 
 Si worlds/seed<N>/ no existe, se genera. La misión termina sola: cuando el explorador acaba
 (sin fronteras o por tiempo), el evaluador escribe en results_dir
@@ -26,24 +27,15 @@ from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
-from usar_worldgen.cli import main as generate_world_cli
+from usar_worldgen.worlds import ensure_world, resolve_world_params
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'quick', 'detection',
                   'results_dir']
 
 
 def _ensure_ground_truth(seed: int, worlds_dir: str, world_params: str) -> str:
-    """Ruta del ground truth de la semilla; genera el mundo si falta."""
-    world_dir = os.path.join(worlds_dir, f'seed{seed}')
-    required = [os.path.join(world_dir, name)
-                for name in ('world.sdf', 'spawn.yaml', 'ground_truth.yaml')]
-    if not all(os.path.isfile(path) for path in required):
-        args = ['--seed', str(seed), '--out', world_dir]
-        if world_params:
-            args += ['--params', world_params]
-        if generate_world_cli(args) != 0:
-            raise RuntimeError(f'No se pudo generar el mundo de la semilla {seed}')
-    return required[2]
+    """Ruta del ground truth de la semilla (y variante); genera el mundo si falta."""
+    return os.path.join(ensure_world(seed, worlds_dir, world_params), 'ground_truth.yaml')
 
 
 def _interrupt_mission(context):
@@ -56,6 +48,12 @@ def _interrupt_mission(context):
     """
     os.killpg(os.getpgrp(), signal.SIGINT)
     return []
+
+
+def _result_prefix(seed: int, context) -> str:
+    """seed<N> o seed<N>_<variante> (p. ej. seed42_dusty) para los archivos de resultados."""
+    _, tag = resolve_world_params(LaunchConfiguration('world_params').perform(context))
+    return f'seed{seed}' + (f'_{tag}' if tag else '')
 
 
 def generate_launch_description():
@@ -79,7 +77,7 @@ def generate_launch_description():
                                  'ground_truth_file': gt_file,
                                  'results_dir': LaunchConfiguration('results_dir')
                                  .perform(context),
-                                 'result_prefix': f'seed{seed}'}])
+                                 'result_prefix': _result_prefix(seed, context)}])
         shutdown = RegisterEventHandler(OnProcessExit(target_action=node, on_exit=[
             LogInfo(msg='[mission] Evaluación terminada: cerrando la misión'),
             OpaqueFunction(function=_interrupt_mission)]))
@@ -93,7 +91,9 @@ def generate_launch_description():
         DeclareLaunchArgument('seed', default_value='42',
                               description='Semilla del escenario procedural'),
         DeclareLaunchArgument('worlds_dir', default_value='worlds'),
-        DeclareLaunchArgument('world_params', default_value=''),
+        DeclareLaunchArgument('world_params', default_value='',
+                              description='Variante del escenario: vacío (por defecto), un '
+                              'nombre (dusty) o la ruta a un YAML de parámetros θ'),
         DeclareLaunchArgument('headless', default_value='false',
                               description='Sin Gazebo GUI ni RViz (para lotes de semillas)'),
         DeclareLaunchArgument('gui', default_value=windows,

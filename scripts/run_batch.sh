@@ -6,6 +6,7 @@
 #   scripts/run_batch.sh                 # semillas 1 2 3 4 5
 #   scripts/run_batch.sh 1 2 3 42
 #   QUICK=true scripts/run_batch.sh 1 2  # 5 min de exploración por semilla (prueba rápida)
+#   WORLD_PARAMS=dusty scripts/run_batch.sh 1 2 3   # variante del escenario (víctimas grises)
 #
 # Variables opcionales:
 #   RESULTS_DIR      carpeta de salida (por defecto results/batch_<fecha>)
@@ -25,15 +26,18 @@ SEEDS=("$@")
 OUT="${RESULTS_DIR:-$REPO/results/batch_$(date +%Y%m%d_%H%M%S)}"
 TIMEOUT="${MISSION_TIMEOUT:-1800}"
 QUICK="${QUICK:-false}"
+WORLD_PARAMS="${WORLD_PARAMS:-}"
 
 if ! command -v ros2 >/dev/null 2>&1 || ! ros2 pkg prefix usar_metrics >/dev/null 2>&1; then
   # shellcheck disable=SC1091
   source "$REPO/usar_ws/install/setup.bash"
 fi
 mkdir -p "$OUT"
+extra_args=()
+[ -n "$WORLD_PARAMS" ] && extra_args+=("world_params:=$WORLD_PARAMS")
 cd "$REPO/usar_ws" || exit 1   # los mundos se generan en usar_ws/worlds/
 
-echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | resultados: $OUT"
+echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | resultados: $OUT"
 failed=()
 for seed in "${SEEDS[@]}"; do
   log="$OUT/seed${seed}_launch.log"
@@ -41,7 +45,7 @@ for seed in "${SEEDS[@]}"; do
   start=$(date +%s)
   # setsid: el launch y sus nodos quedan en su propio grupo de procesos, para cerrarlo entero.
   setsid ros2 launch usar_bringup mission.launch.py "seed:=$seed" headless:=true \
-    "quick:=$QUICK" "results_dir:=$OUT" >"$log" 2>&1 &
+    "quick:=$QUICK" "results_dir:=$OUT" "${extra_args[@]}" >"$log" 2>&1 &
   pid=$!
   while kill -0 "$pid" 2>/dev/null; do
     if [ $(( $(date +%s) - start )) -ge "$TIMEOUT" ]; then

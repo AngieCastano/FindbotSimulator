@@ -69,6 +69,11 @@ PARAMS = {
     'escape_turn_speed': 0.6,
     'escape_timeout': 15.0,
     'stuck_failures': 2,
+    'escape_min_motion': 0.03,
+    'escape_bypass_after': 3,
+    'escape_bypass_topic': '/cmd_vel',
+    'escape_bypass_speed': 0.05,
+    'escape_bypass_distance': 0.15,
     'max_rejections': 5,
 }
 
@@ -98,6 +103,9 @@ class FrontierExplorer(Node):
         self.marker_pub = self.create_publisher(MarkerArray, '/exploration/frontiers', 10)
         # Maniobra de escape: pasa por el collision_monitor de órdenes externas a Nav2.
         self.escape_pub = self.create_publisher(Twist, self.p['escape_cmd_topic'], 10)
+        # Escape de último recurso (ver _start_escape_if_trapped): directo a la base del robot.
+        self.bypass_pub = self.create_publisher(Twist, self.p['escape_bypass_topic'], 10)
+        self.escape_failures = 0      # escapes seguidos que no movieron el robot
         self.escape = None
         self.escapes = 0
         # Metas seguidas fallidas sin progreso con el robot en el mismo sitio.
@@ -446,18 +454,34 @@ class FrontierExplorer(Node):
         stuck = self.stuck_count >= self.p['stuck_failures'] > 0
         if not inscribed and not stuck:
             return False
-        heading, forward = fc.escape_direction(cost, info, *pose,
-                                               self.p['escape_probe_distances'])
         self.escapes += 1
         self.stuck_count, self.stuck_anchor = 0, None
-        self.escape = {'heading': heading if forward else heading + math.pi,
-                       'forward': forward, 'start': pose[:2], 'since': self._now(),
-                       'turning': True, 'inscribed': inscribed}
         cause = ('Robot en zona inscrita del costmap' if inscribed else
                  f'{self.p["stuck_failures"]} metas seguidas sin progreso en el mismo sitio')
-        self.get_logger().info(
-            f'{cause}: escape {self.escapes} hacia '
-            f'{math.degrees(heading):.0f}° ({"avanzando" if forward else "retrocediendo"})')
+        if self.escape_failures >= self.p['escape_bypass_after'] > 0:
+            # Último recurso: los escapes anteriores no movieron el robot porque un obstáculo
+            # quedó dentro del polígono del collision_monitor (que entonces frena todo, también
+            # alejarse). Avance o retroceso recto y muy lento, sin girar, hacia el lado de menor
+            # costo, publicado directamente en la base: el centro está a más de robot_radius
+            # menos el margen del obstáculo y la carcasa no lo alcanza al alejarse en línea recta.
+            forward = fc.straight_escape_forward(cost, info, *pose,
+                                                 self.p['escape_probe_distances'])
+            self.escape_failures = 0
+            self.escape = {'heading': pose[2], 'forward': forward, 'start': pose[:2],
+                           'since': self._now(), 'turning': False, 'inscribed': inscribed,
+                           'bypass': True}
+            self.get_logger().warn(
+                f'{cause}: escape {self.escapes} DE ÚLTIMO RECURSO (los anteriores no movieron '
+                f'el robot), {"avanzando" if forward else "retrocediendo"} en línea recta')
+        else:
+            heading, forward = fc.escape_direction(cost, info, *pose,
+                                                   self.p['escape_probe_distances'])
+            self.escape = {'heading': heading if forward else heading + math.pi,
+                           'forward': forward, 'start': pose[:2], 'since': self._now(),
+                           'turning': True, 'inscribed': inscribed, 'bypass': False}
+            self.get_logger().info(
+                f'{cause}: escape {self.escapes} hacia '
+                f'{math.degrees(heading):.0f}° ({"avanzando" if forward else "retrocediendo"})')
         self.state = ESCAPING
         return True
 
@@ -481,14 +505,23 @@ class FrontierExplorer(Node):
                 # Si empezó en la zona inscrita, basta con salir de ella; si no, recorre
                 # escape_distance completo.
                 left_zone = esc['inscribed'] and free and moved > 0.05
-                if moved >= self.p['escape_distance'] or left_zone:
+                distance = self.p['escape_bypass_distance' if esc['bypass']
+                                  else 'escape_distance']
+                if moved >= distance or left_zone:
                     done = True
                 else:
-                    speed = self.p['escape_speed']
+                    speed = self.p['escape_bypass_speed' if esc['bypass'] else 'escape_speed']
                     cmd.linear.x = speed if esc['forward'] else -speed
-                    cmd.angular.z = 1.5 * err
-        self.escape_pub.publish(Twist() if done else cmd)
+                    cmd.angular.z = 0.0 if esc['bypass'] else 1.5 * err
+        publisher = self.bypass_pub if esc['bypass'] else self.escape_pub
+        publisher.publish(Twist() if done else cmd)
         if done:
+            moved = 0.0 if pose is None else math.hypot(pose[0] - esc['start'][0],
+                                                        pose[1] - esc['start'][1])
+            if esc['bypass'] or moved >= self.p['escape_min_motion']:
+                self.escape_failures = 0
+            else:
+                self.escape_failures += 1
             self.escape = None
             self.state = IDLE
 

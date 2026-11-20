@@ -10,6 +10,13 @@ SDF_VERSION = '1.9'
 
 VICTIM_RGB = (1.0, 0.4, 0.0)  # naranja intenso
 VICTIM_EMISSIVE = (0.25, 0.1, 0.0)
+# Víctima "cubierta de polvo": gris parduzco dentro de la gama de los escombros (saturación
+# baja), de modo que el color no la distingue.
+VICTIM_DUSTY_RGB = (0.52, 0.49, 0.45)
+VICTIM_MATERIALS = {
+    'orange': (VICTIM_RGB, VICTIM_EMISSIVE),
+    'dusty': (VICTIM_DUSTY_RGB, (0.0, 0.0, 0.0)),
+}
 
 # Partes del humanoide acostado en el marco de la víctima (eje x: pies → cabeza).
 # (nombre, geometría, dimensiones, pose x y z roll pitch yaw)
@@ -98,8 +105,8 @@ def _obstacle_model(obstacle: Obstacle) -> str:
     return _static_model(f'obstacle_{obstacle.idx:03d}', pose, [part])
 
 
-def _victim_model(victim: Victim) -> str:
-    material = _material(VICTIM_RGB, VICTIM_EMISSIVE)
+def _victim_model(victim: Victim, appearance: str) -> str:
+    material = _material(*VICTIM_MATERIALS[appearance])
     parts = [_part(name, kind, dims, pose, material) for name, kind, dims, pose in VICTIM_PARTS]
     pose = (victim.shape.x, victim.shape.y, 0, 0, 0, victim.shape.yaw)
     return _static_model(f'victim_{victim.idx:02d}', pose, parts)
@@ -111,7 +118,7 @@ def world_to_sdf(world: GeneratedWorld) -> str:
     width, length = params.size
     ground_size = _vec((width + 10, length + 10))
     models = [*_walls(world), *(_obstacle_model(o) for o in world.obstacles),
-              *(_victim_model(v) for v in world.victims)]
+              *(_victim_model(v, params.victim_appearance) for v in world.victims)]
     models_text = '\n'.join(models)
     return f"""<?xml version="1.0" ?>
 <!-- Generado por usar_worldgen: semilla {params.seed}, intento {world.attempt},

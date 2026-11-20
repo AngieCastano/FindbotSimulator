@@ -102,7 +102,10 @@ def render_comparison(path: str, gt: Dict, map_data: np.ndarray, geometry: GridG
             patch = patches.Polygon(corners, closed=True)
         else:
             patch = patches.Circle((obs['x'], obs['y']), obs['radius'])
-        patch.set(fill=False, edgecolor='#c0392b', lw=1.0, zorder=3)
+        if obs.get('category', 'rubble') == 'rubble':
+            patch.set(fill=False, edgecolor='#c0392b', lw=1.0, zorder=3)
+        else:   # escombro bajo (tablón, losa, bloque): se confunde con una víctima
+            patch.set(fill=False, edgecolor='#9a7b2f', lw=1.2, ls='--', zorder=3)
         ax.add_patch(patch)
 
     if len(trajectory_world) > 1:
@@ -138,6 +141,7 @@ def render_comparison(path: str, gt: Dict, map_data: np.ndarray, geometry: GridG
         patches.Patch(facecolor='#202020', label='Ocupado (mapa SLAM)'),
         patches.Patch(facecolor='#d9d9d9', label='Desconocido'),
         patches.Patch(fill=False, edgecolor='#c0392b', label='Escombros reales'),
+        patches.Patch(fill=False, edgecolor='#9a7b2f', ls='--', label='Escombros bajos'),
         Line2D([], [], color='#1f77b4', lw=1, label='Trayectoria (odometría)'),
         Line2D([], [], marker='X', ls='', color='#ff7f0e', mec='#7a2e00', ms=9,
                label='Víctima real (centro y cuerpo)'),
@@ -153,9 +157,12 @@ def render_comparison(path: str, gt: Dict, map_data: np.ndarray, geometry: GridG
                  f"tiempo {summary['exploration_time_s']:.0f} s, "
                  f"recorrido {summary['distance_m']:.1f} m ({summary['end_reason']})",
                  fontsize=10)
+    # Los límites incluyen las estimaciones fuera del escenario (falsos positivos tras un muro).
     margin = 0.5
-    ax.set_xlim(x_min - margin, x_max + margin)
-    ax.set_ylim(y_min - margin, y_max + margin)
+    extra = np.array([*victims.false_positives,
+                      *(m.estimated_xy for m in victims.matches if m.detected)]).reshape(-1, 2)
+    ax.set_xlim(min(x_min, *extra[:, 0]) - margin, max(x_max, *extra[:, 0]) + margin)
+    ax.set_ylim(min(y_min, *extra[:, 1]) - margin, max(y_max, *extra[:, 1]) + margin)
     ax.set_aspect('equal')
     ax.set_xlabel('x [m]')
     ax.set_ylabel('y [m]')
