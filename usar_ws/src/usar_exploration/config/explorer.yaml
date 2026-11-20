@@ -69,3 +69,19 @@ frontier_explorer:
     escape_bypass_topic: /cmd_vel
     escape_bypass_speed: 0.05   # m/s
     escape_bypass_distance: 0.15   # m
+    # Robot encerrado: si en trap_timeout s no se aleja trap_radius m del mismo sitio (las metas
+    # fallan y los escapes cortos no lo sacan: el costmap ve cerradas todas las salidas de un
+    # hueco), vuelve marcha atrás o adelante por su propia huella (el camino por el que entró, que
+    # ya cupo físicamente) backtrack_distance m, a través del collision_monitor, y desde entonces
+    # descarta las metas a menos de trap_avoid_radius m de ese sitio.
+    trap_timeout: 60.0          # s; 0 = desactivado
+    trap_radius: 1.0            # m
+    backtrack_distance: 2.0     # m de huella a deshacer (y hasta salir de trap_radius)
+    backtrack_speed: 0.1        # m/s
+    backtrack_turn_speed: 0.5   # rad/s
+    backtrack_lookahead: 0.3    # m: persecución pura sobre la huella
+    backtrack_timeout: 45.0     # s
+    backtrack_stall_time: 8.0   # s sin moverse 5 cm: se abandona (bloqueado)
+    trap_avoid_radius: 1.2      # m
+    crumb_spacing: 0.1          # m entre puntos de la huella
+    control_period: 0.1         # s: ciclo de la huella y del retroceso

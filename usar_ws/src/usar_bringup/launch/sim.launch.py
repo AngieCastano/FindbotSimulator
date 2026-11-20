@@ -5,9 +5,11 @@ Uso:
     ros2 launch usar_bringup sim.launch.py seed:=42
     ros2 launch usar_bringup sim.launch.py seed:=7 gui:=false rviz:=false   # sin ventanas
     ros2 launch usar_bringup sim.launch.py use_thermal:=true   # con la cámara térmica (fase 2)
+    ros2 launch usar_bringup sim.launch.py use_co2:=true       # con el sensor de CO₂ (fase 2)
 
 Si worlds/seed<N>/ no existe, se genera con usar_worldgen. El robot aparece en la pose de
-spawn.yaml (archivo público); este launch NO lee ground_truth.yaml.
+spawn.yaml (archivo público). Este launch no lee ground_truth.yaml: solo pasa su ruta a los
+simuladores de sensores de usar_sim_sensors (excepción del ground truth, ver CLAUDE.md).
 """
 
 import os
@@ -37,6 +39,9 @@ def _launch_setup(context):
     gui = LaunchConfiguration('gui').perform(context).lower() == 'true'
     robot_params = LaunchConfiguration('robot_params').perform(context)
     use_thermal = LaunchConfiguration('use_thermal').perform(context).lower() == 'true'
+    use_co2 = LaunchConfiguration('use_co2').perform(context).lower() == 'true'
+    # Pose real del robot: solo la necesitan los simuladores de gases/sonido/radar.
+    sim_pose = use_co2
 
     # worlds/seed<N>/ o, con world_params:=<nombre>, worlds/seed<N>_<nombre>/ (se genera si falta)
     world_dir = ensure_world(seed, worlds_dir, world_params)
@@ -47,7 +52,9 @@ def _launch_setup(context):
     robot_description = xacro.process_file(
         os.path.join(description_share, 'urdf', 'findbot.urdf.xacro'),
         mappings={'robot_params': robot_params,
-                  'use_thermal': 'true' if use_thermal else 'false'}).toxml()
+                  'use_thermal': 'true' if use_thermal else 'false',
+                  'use_co2': 'true' if use_co2 else 'false',
+                  'sim_pose': 'true' if sim_pose else 'false'}).toxml()
 
     # -r: arrancar la simulación; sin GUI: solo servidor con renderizado headless (sensores).
     gz_args = f'-r -v 2 {world_sdf}' if gui else f'-r -s -v 2 --headless-rendering {world_sdf}'
@@ -86,6 +93,23 @@ def _launch_setup(context):
                              {'use_sim_time': True}]),
         ]
 
+    # Simuladores de la Capa 2 que necesitan la pose real (excepción del ground truth).
+    sim_sensors = []
+    sim_sensors_share = get_package_share_directory('usar_sim_sensors')
+    if sim_pose:
+        sim_sensors.append(Node(
+            package='ros_gz_bridge', executable='parameter_bridge', name='sim_pose_bridge',
+            output='screen',
+            parameters=[{'config_file': os.path.join(description_share, 'config',
+                                                     'bridge_sim_pose.yaml'),
+                         'use_sim_time': True}]))
+    if use_co2:
+        sim_sensors.append(Node(
+            package='usar_sim_sensors', executable='co2_sim', output='screen',
+            parameters=[os.path.join(sim_sensors_share, 'config', 'co2_sim.yaml'),
+                        {'use_sim_time': True,
+                         'ground_truth_file': os.path.join(world_dir, 'ground_truth.yaml')}]))
+
     rviz = Node(
         package='rviz2', executable='rviz2', output='log',
         arguments=['-d', LaunchConfiguration('rviz_config').perform(context)],
@@ -94,7 +118,7 @@ def _launch_setup(context):
 
     return [
         LogInfo(msg=f'[sim] Semilla {seed} | mundo: {world_sdf} | spawn: {spawn}'),
-        gazebo, robot_state_publisher, spawn_robot, bridge, *thermal, rviz,
+        gazebo, robot_state_publisher, spawn_robot, bridge, *thermal, *sim_sensors, rviz,
     ]
 
 
@@ -119,5 +143,7 @@ def generate_launch_description():
                               description='Parámetros del robot (dimensiones y sensores)'),
         DeclareLaunchArgument('use_thermal', default_value='false',
                               description='Cámara térmica MLX90640 (fase 2)'),
+        DeclareLaunchArgument('use_co2', default_value='false',
+                              description='Sensor de CO₂ TGS4161 (fase 2)'),
         OpaqueFunction(function=_launch_setup),
     ])

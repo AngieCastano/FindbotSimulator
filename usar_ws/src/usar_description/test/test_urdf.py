@@ -124,3 +124,18 @@ def test_thermal_check_urdf(thermal_xml, tmp_path):
     path.write_text(thermal_xml)
     result = subprocess.run(['check_urdf', str(path)], capture_output=True, text=True)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# ---------------------------------------------------------------------- sensor de CO₂ (fase 2)
+def test_co2_link(params):
+    off = ET.fromstring(xacro.process_file(XACRO_FILE, mappings={
+        'robot_params': PARAMS_FILE}).toxml())
+    assert 'co2_link' not in {link.get('name') for link in off.findall('link')}
+    root = ET.fromstring(xacro.process_file(XACRO_FILE, mappings={
+        'robot_params': PARAMS_FILE, 'use_co2': 'true'}).toxml())
+    joint = next(j for j in root.findall('joint') if j.get('name') == 'co2_joint')
+    xyz = [float(v) for v in joint.find('origin').get('xyz').split()]
+    co2 = params['co2']
+    assert xyz == pytest.approx([co2['x'], co2['y'], co2['z']])
+    # Posición tomada de hardware/CLAUDE.md (Geometría: TGS4161 en co2_link).
+    assert xyz == pytest.approx([0.03, 0.05, 0.0275])

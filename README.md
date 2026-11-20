@@ -231,7 +231,7 @@ visión de 69°.
 | `/exploration/status` | `std_msgs/String` | explorador → evaluador (`exploring`, `finished:<motivo>`, …) |
 | `/exploration/frontiers` | `visualization_msgs/MarkerArray` | explorador → RViz |
 | `/victims/markers` | `visualization_msgs/MarkerArray` | detector → RViz |
-| `/victims/detections` | `geometry_msgs/PoseArray` | detector → evaluador |
+| `/victims/detections` | `usar_msgs/VictimDetectionArray` (incluye las modalidades) | detector → evaluador |
 | `/victims/debug_image` | `sensor_msgs/Image` | detector → RViz |
 
 Ningún parámetro está fijo en el código: todos están en archivos YAML.

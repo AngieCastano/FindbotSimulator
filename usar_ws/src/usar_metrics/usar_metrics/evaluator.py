@@ -16,7 +16,6 @@ import math
 import os
 from typing import Dict, List, Optional
 
-from geometry_msgs.msg import PoseArray
 from nav_msgs.msg import OccupancyGrid, Odometry
 import numpy as np
 import rclpy
@@ -24,6 +23,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
+from usar_msgs.msg import VictimDetectionArray
 from usar_worldgen.ground_truth import explorable_from_ground_truth, load_ground_truth
 
 from . import report
@@ -47,7 +47,7 @@ PARAMS = {
     'detections_topic': '/victims/detections',
     # Detecciones de cada detector por separado (/victims/detections/<modalidad>): métricas por
     # modalidad sensorial. Solo se informan las modalidades que publicaron algo.
-    'modalities': ['color_shape', 'human_shape', 'thermal'],
+    'modalities': ['color_shape', 'human_shape', 'thermal', 'co2'],
     'status_topic': '/exploration/status',
     'image_dpi': 150,
 }
@@ -104,12 +104,13 @@ class Evaluator(Node):
         self.create_subscription(OccupancyGrid, self.p['map_topic'],
                                  lambda m: setattr(self, 'map_msg', m), latched)
         self.create_subscription(Odometry, self.p['odom_topic'], self._on_odom, 50)
-        self.create_subscription(PoseArray, self.p['detections_topic'], self._on_detections, 10)
+        self.create_subscription(VictimDetectionArray, self.p['detections_topic'],
+                                 self._on_detections, 10)
         for name in self.p['modalities']:
             self.create_subscription(
-                PoseArray, f"{self.p['detections_topic']}/{name}",
+                VictimDetectionArray, f"{self.p['detections_topic']}/{name}",
                 lambda msg, name=name: self.modality_estimates.__setitem__(
-                    name, [(p.position.x, p.position.y) for p in msg.poses]), 10)
+                    name, [(v.position.x, v.position.y) for v in msg.victims]), 10)
         self.create_subscription(String, self.p['status_topic'], self._on_status, latched)
         self.create_timer(float(self.p['sample_period']), self._sample)
         self.get_logger().info(
@@ -135,8 +136,8 @@ class Evaluator(Node):
                 >= self.p['trajectory_step']):
             self.trajectory.append((x, y))
 
-    def _on_detections(self, msg: PoseArray):
-        self.estimates = [(p.position.x, p.position.y) for p in msg.poses]
+    def _on_detections(self, msg: VictimDetectionArray):
+        self.estimates = [(v.position.x, v.position.y) for v in msg.victims]
 
     def _on_status(self, msg: String):
         self.status = msg.data

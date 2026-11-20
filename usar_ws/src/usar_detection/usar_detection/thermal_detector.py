@@ -44,6 +44,7 @@ class ThermalDetector(SignOfLifeDetector):
 
     name = 'thermal'
     sensor = 'thermal'
+    position_sigma = 0.4          # m: triangulación de rayos (Fase 9: error medio 0.33 m)
 
     def __init__(self, params: Dict):
         super().__init__({**DEFAULTS, **params})

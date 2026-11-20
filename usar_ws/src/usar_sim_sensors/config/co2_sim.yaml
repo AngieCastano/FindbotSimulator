@@ -1,0 +1,21 @@
+# CO₂ exhalado por las víctimas y respuesta del Figaro TGS4161 (Capa 2, solo simulación).
+# ground_truth_file lo fija sim.launch.py (excepción del ground truth: ver CLAUDE.md).
+co2_sim:
+  ros__parameters:
+    pose_topic: /sim/ground_truth/odom   # pose real del robot (solo para este simulador)
+    output_topic: /co2/concentration     # usar_msgs/GasConcentration: lo mismo que el ESP32
+    base_frame: base_footprint
+    sensor_frame: co2_link
+    rate: 2.0               # Hz
+    # Pluma de cada víctima: exceso = peak_excess_ppm · exp(−r / decay_length)
+    ambient_ppm: 400.0      # aire exterior (línea base con la que se calibra el sensor)
+    peak_excess_ppm: 2000.0 # junto a la cabeza de una persona en un hueco semicerrado
+    decay_length: 1.0       # m
+    turbulence_sigma: 0.3   # fluctuación relativa del exceso por corrientes de aire
+    turbulence_tau: 5.0     # s: tiempo de correlación de la fluctuación
+    # Sensor TGS4161
+    response_tau: 20.0      # s: constante de tiempo (90 % de la respuesta en ≈ 46 s)
+    noise_log: 0.02         # ruido gaussiano en log(ppm): ≈ 2 % de la lectura
+    min_ppm: 350.0          # rango de medida
+    max_ppm: 10000.0
+    seed: 0

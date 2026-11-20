@@ -74,11 +74,22 @@ PARAMS = {
     'escape_bypass_topic': '/cmd_vel',
     'escape_bypass_speed': 0.05,
     'escape_bypass_distance': 0.15,
+    'trap_timeout': 60.0,
+    'trap_radius': 1.0,
+    'backtrack_distance': 2.0,
+    'backtrack_speed': 0.1,
+    'backtrack_turn_speed': 0.5,
+    'backtrack_lookahead': 0.3,
+    'backtrack_timeout': 45.0,
+    'backtrack_stall_time': 8.0,
+    'trap_avoid_radius': 1.2,
+    'crumb_spacing': 0.1,
+    'control_period': 0.1,
     'max_rejections': 5,
 }
 
-WAITING, IDLE, PLANNING, NAVIGATING, ESCAPING, FINISHED = (
-    'waiting', 'idle', 'planning', 'navigating', 'escaping', 'finished')
+WAITING, IDLE, PLANNING, NAVIGATING, ESCAPING, BACKTRACKING, FINISHED = (
+    'waiting', 'idle', 'planning', 'navigating', 'escaping', 'backtracking', 'finished')
 
 
 class FrontierExplorer(Node):
@@ -111,6 +122,13 @@ class FrontierExplorer(Node):
         # Metas seguidas fallidas sin progreso con el robot en el mismo sitio.
         self.stuck_count = 0
         self.stuck_anchor = None
+        # Encierro: el robot no se aleja trap_radius de trap_anchor en trap_timeout segundos.
+        self.crumbs = fc.Breadcrumbs(self.p['crumb_spacing'])
+        self.trap_anchor = None
+        self.trap_since: Optional[Time] = None
+        self.trap_zones: List[tuple] = []
+        self.backtrack = None
+        self.backtracks = 0
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -139,6 +157,7 @@ class FrontierExplorer(Node):
         self.retry_after: Optional[Time] = None
 
         self.create_timer(self.p['tick_period'], self._tick)
+        self.create_timer(self.p['control_period'], self._control)
         self.create_timer(1.0, self._publish_status)
 
     # ------------------------------------------------------------------ utilidades
@@ -196,6 +215,9 @@ class FrontierExplorer(Node):
             return
         if robot is None:
             return
+        if self.state != BACKTRACKING and self._trapped(robot):
+            self._start_backtrack(robot)
+            return
         if self.state == IDLE:
             if self.retry_after is None or self._now() >= self.retry_after:
                 if not self._start_escape_if_trapped():
@@ -223,7 +245,7 @@ class FrontierExplorer(Node):
             cost_ok = fc.align_to(info, cost, cost_info, fill=-1) <= self.p['max_goal_cost']
 
         valid = []
-        rejected = {'sin_holgura': 0, 'cerca': 0, 'poca_info': 0, 'lista_negra': 0}
+        rejected = {'sin_holgura': 0, 'cerca': 0, 'poca_info': 0, 'lista_negra': 0, 'trampa': 0}
         for f in frontiers:
             cell = fc.find_safe_goal(fc.representative_cell(f, info), free, clearance, info,
                                      self.p['goal_search_radius'],
@@ -237,7 +259,9 @@ class FrontierExplorer(Node):
             reason = ('cerca' if dist < self.p['min_goal_distance'] else
                       'poca_info' if f.info_gain < self.p['min_info_gain'] else
                       'lista_negra' if fc.is_blacklisted(f.goal, self.blacklist,
-                                                         self.p['blacklist_radius']) else None)
+                                                         self.p['blacklist_radius']) else
+                      'trampa' if fc.is_blacklisted(f.goal, self.trap_zones,
+                                                    self.p['trap_avoid_radius']) else None)
             if reason:
                 rejected[reason] += 1
                 continue
@@ -334,9 +358,13 @@ class FrontierExplorer(Node):
 
     # ------------------------------------------------------------------ ejecución de la meta
     def _on_nav_accepted(self, future, seq):
-        if seq != self.goal_seq:
-            return
         handle = future.result()
+        if seq != self.goal_seq:
+            # La meta se abandonó mientras Nav2 la aceptaba (p. ej. empezó un retroceso): que
+            # Nav2 no siga conduciendo hacia ella.
+            if handle is not None and handle.accepted:
+                handle.cancel_goal_async()
+            return
         if handle is None or not handle.accepted:
             self._on_rejected()
             return
@@ -525,6 +553,89 @@ class FrontierExplorer(Node):
             self.escape = None
             self.state = IDLE
 
+    # ------------------------------------------------------------------ retroceso por la huella
+    def _control(self):
+        """Ciclo rápido: registra la huella del recorrido y conduce el retroceso."""
+        if self.state in (WAITING, FINISHED):
+            return
+        pose = self._robot_pose()
+        if pose is None:
+            return
+        if self.state == BACKTRACKING:
+            self._backtrack_step(pose)
+        else:
+            self.crumbs.add(pose[0], pose[1])
+
+    def _trapped(self, robot) -> bool:
+        """
+        Cierto si el robot lleva trap_timeout s sin alejarse trap_radius del mismo sitio.
+
+        Las metas fallidas y los escapes cortos no lo sacan de un hueco cuyas salidas el costmap
+        ve cerradas (p. ej. entre una víctima, un escombro bajo y escombros altos).
+        """
+        if self.trap_anchor is None or math.hypot(
+                robot[0] - self.trap_anchor[0], robot[1] - self.trap_anchor[1]) \
+                > self.p['trap_radius']:
+            self.trap_anchor, self.trap_since = robot, self._now()
+            return False
+        return self.p['trap_timeout'] > 0 and \
+            self._elapsed(self.trap_since) > self.p['trap_timeout']
+
+    def _start_backtrack(self, robot):
+        """Cancela lo que esté haciendo y vuelve por su propia huella fuera del hueco."""
+        path = self.crumbs.path_back(robot[0], robot[1], self.p['backtrack_distance'],
+                                     self.p['trap_radius'])
+        self.trap_zones.append(tuple(robot))
+        self.trap_anchor, self.trap_since = robot, self._now()
+        if self.goal_handle is not None:
+            self.goal_handle.cancel_goal_async()
+        if self.goal is not None:
+            self._goal_done(False, 'robot encerrado')
+        if self.escape is not None:
+            (self.bypass_pub if self.escape['bypass'] else self.escape_pub).publish(Twist())
+            self.escape = None
+        if len(path) < 2:
+            self.get_logger().warn('Robot encerrado pero sin huella para volver; se evita la zona')
+            self.state = IDLE
+            return
+        self.backtracks += 1
+        length = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(path[:-1], path[1:]))
+        self.get_logger().warn(
+            f'Robot encerrado en ({robot[0]:.2f}, {robot[1]:.2f}) '
+            f'{self.p["trap_timeout"]:.0f} s en un radio de '
+            f'{self.p["trap_radius"]} m: retroceso {self.backtracks} por su huella '
+            f'({length:.1f} m); se evitan metas a menos de {self.p["trap_avoid_radius"]} m')
+        self.backtrack = {'path': path, 'since': self._now(), 'last_pose': robot,
+                          'last_motion': self._now()}
+        self.state = BACKTRACKING
+
+    def _backtrack_step(self, pose):
+        bt = self.backtrack
+        cmd = Twist()
+        end = bt['path'][-1]
+        reached = math.hypot(pose[0] - end[0], pose[1] - end[1]) < 0.15
+        if math.hypot(pose[0] - bt['last_pose'][0], pose[1] - bt['last_pose'][1]) > 0.05:
+            bt['last_pose'], bt['last_motion'] = pose[:2], self._now()
+        timeout = self._elapsed(bt['since']) > self.p['backtrack_timeout']
+        stalled = self._elapsed(bt['last_motion']) > self.p['backtrack_stall_time']
+        if not (reached or timeout or stalled):
+            v, w, nearest = fc.follow_path_command(
+                pose, bt['path'], self.p['backtrack_lookahead'], self.p['backtrack_speed'],
+                self.p['backtrack_turn_speed'])
+            bt['path'] = bt['path'][nearest:] or bt['path'][-1:]
+            cmd.linear.x, cmd.angular.z = v, w
+            self.escape_pub.publish(cmd)
+            return
+        self.escape_pub.publish(Twist())
+        result = 'fuera del hueco' if reached else \
+            'tiempo agotado' if timeout else 'bloqueado por el collision_monitor'
+        self.get_logger().info(f'Retroceso {self.backtracks} terminado ({result})')
+        self.backtrack = None
+        self.trap_anchor, self.trap_since = pose[:2], self._now()
+        self.escape_failures = 0
+        self.stuck_count, self.stuck_anchor = 0, None
+        self.state = IDLE
+
     # ------------------------------------------------------------------ fin y salidas
     def _finish(self, reason):
         if self.goal_handle is not None:
@@ -535,7 +646,8 @@ class FrontierExplorer(Node):
         self.status = f'finished:{reason}'
         self.get_logger().info(
             f'Exploración terminada ({reason}) en {self._elapsed(self.start_time):.0f} s: '
-            f'{self.goals_sent} metas enviadas, {self.goals_failed} fallidas')
+            f'{self.goals_sent} metas enviadas, {self.goals_failed} fallidas, '
+            f'{self.escapes} escapes, {self.backtracks} retrocesos')
         self._publish_status()
         self._publish_markers()
 

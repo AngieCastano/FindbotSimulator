@@ -73,7 +73,35 @@ ground truth no puede volver al robot.
 - `usar_metrics` crea algún publicador de ROS;
 - el puente expone un tópico de Gazebo no auditado (en particular `/world/...` o `/model/...`);
 - el robot deja de usar `DiffDrive` para la odometría o usa `OdometryPublisher` o
-  `PosePublisher`.
+  `PosePublisher` sin `sim_pose:=true` (ver la sección 4).
 
 Una prueba adicional verifica que el análisis distingue un uso real (import, ruta en una cadena)
 de una mención en un comentario.
+
+## 4. Excepción: simuladores de sensores de la Capa 2 (desde la Fase 10)
+
+Gazebo no simula gases, sonido ni radar. Para esos sensores, un nodo de `usar_sim_sensors` hace
+el papel de la física: calcula qué mediría el sensor real. Para eso necesita saber dónde están
+las víctimas y dónde está de verdad el robot. Es la **única excepción** a la regla (aprobada
+en la planificación de las fases 8–13 y escrita en CLAUDE.md):
+
+| Puede | No puede |
+|---|---|
+| Leer `ground_truth.yaml` (sim.launch.py le pasa la ruta) | Publicar posiciones, distancias, direcciones a víctimas ni identificadores |
+| Suscribirse a la pose real `/sim/ground_truth/odom` (plugin `OdometryPublisher`, solo con `sim_pose:=true`) | Publicar en tópicos que no sean de medida de sensor |
+| Publicar **medidas** realistas con ruido, alcance y retardo (`/co2/concentration` en ppm, `/thermal/image` en °C) | Existir en el robot real: allí el sensor físico publica el mismo tópico y mensaje |
+
+Ningún otro nodo del robot (explorador, detector, SLAM, Nav2) se suscribe a `/sim/*`. El robot
+recibe una concentración en ppm, igual que la recibiría del ESP32: el detector de CO₂ tiene que
+deducir de dónde viene con su propio recorrido y su `/map`.
+
+Pruebas automáticas añadidas a `test_ground_truth_isolation.py`:
+
+- `usar_sim_sensors` solo crea publicadores de mensajes de medida (`Image`, `GasConcentration`);
+- `sim.launch.py` entrega la ruta del ground truth solo a nodos de `usar_sim_sensors`;
+- ningún archivo de `usar_bringup`, `usar_exploration`, `usar_detection` ni `usar_metrics` nombra
+  un tópico `/sim/*` (la configuración del puente está en `usar_description`);
+- el modelo del robot por defecto no tiene `OdometryPublisher`; con `sim_pose:=true` lo tiene y
+  publica en `/sim/ground_truth/odom`;
+- el puente de la pose real (`bridge_sim_pose.yaml`) solo expone `/sim/ground_truth/odom`.
+

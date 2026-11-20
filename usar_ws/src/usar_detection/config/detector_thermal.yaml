@@ -1,9 +1,8 @@
-# Se añade encima de detector.yaml con use_thermal:=true (exploration.launch.py): activa el
-# detector de calor corporal con la cámara térmica MLX90640 (fase 2). Ver docs/fase9_termica.md.
+# Se añade encima de detector.yaml con use_thermal:=true (exploration.launch.py añade "thermal"
+# a la lista de detectores): calor corporal con la cámara MLX90640 (fase 2). Ver
+# docs/fase9_termica.md.
 victim_detector:
   ros__parameters:
-    detectors: ["color_shape", "human_shape", "thermal"]
-
     thermal_topic: /thermal/image   # sensor_msgs/Image 32FC1, °C (ESP32 o usar_sim_sensors)
     thermal_horizontal_fov: 0.96    # rad (55°, MLX90640 BAA): da los intrínsecos de la cámara
     thermal_processing_rate: 4.0    # Hz (la cámara publica a 4)

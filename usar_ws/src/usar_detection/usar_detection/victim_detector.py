@@ -4,13 +4,15 @@ Nodo victim_detector: detecta víctimas con los sensores del robot y las ubica e
 Entradas (solo sensores y estimación propia del robot):
   /camera/image, /camera/depth_image, /camera/camera_info   (detectores de la cámara RGB-D)
   /thermal/image (32FC1, °C)                                 (detector térmico, fase 2)
+  /co2/concentration (usar_msgs/GasConcentration, ppm)       (detector de CO₂, fase 2)
   TF map → frames ópticos de las cámaras (SLAM + modelo del robot)
   /map (mapa del propio robot): descarta evidencia en celdas desconocidas y limita los rayos
        de la cámara térmica, que se triangulan (intersección de rayos desde varias direcciones)
 Salidas:
   /victims/markers     (visualization_msgs/MarkerArray) víctimas confirmadas y tentativas
-  /victims/detections  (geometry_msgs/PoseArray, frame map) víctimas confirmadas (fusionadas)
-  /victims/detections/<detector> (PoseArray) confirmadas por cada detector por separado
+  /victims/detections  (usar_msgs/VictimDetectionArray, frame map) víctimas confirmadas
+                       (fusionadas), con los detectores (modalidades) que confirmaron cada una
+  /victims/detections/<detector> (VictimDetectionArray) confirmadas por cada detector solo
   /victims/debug_image (sensor_msgs/Image) imagen con la segmentación superpuesta
   /thermal/debug_image (sensor_msgs/Image) imagen térmica en falso color con las manchas
   log CSV en log_dir   (tiempo, víctima, posición estimada, observaciones, confianza)
@@ -28,7 +30,6 @@ import os
 
 import cv2
 from cv_bridge import CvBridge
-from geometry_msgs.msg import Pose, PoseArray
 import message_filters
 from nav_msgs.msg import OccupancyGrid
 import numpy as np
@@ -41,14 +42,16 @@ from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import ColorRGBA
 import tf2_ros
+from usar_detection import co2_detector  # noqa: F401  (registra Co2Detector)
 from usar_detection import color_detector  # noqa: F401  (registra ColorShapeDetector)
 from usar_detection import human_shape_detector  # noqa: F401  (registra HumanShapeDetector)
 from usar_detection import thermal_detector  # noqa: F401  (registra ThermalDetector)
 from usar_detection.bearing_evidence import BearingEvidence
 from usar_detection.map_filter import known_cells_mask, ray_extents
-from usar_detection.sign_of_life import (create_detector, intrinsics_from_fov, Observation,
-                                         ThermalObservation)
+from usar_detection.sign_of_life import (Co2Observation, create_detector, intrinsics_from_fov,
+                                         Observation, ThermalObservation)
 from usar_detection.tracker import VictimRegistry, VictimTracker
+from usar_msgs.msg import GasConcentration, VictimDetection, VictimDetectionArray
 from visualization_msgs.msg import Marker, MarkerArray
 
 PARAMS = {
@@ -81,6 +84,8 @@ PARAMS = {
     'thermal_bearing_bins': 12,
     'thermal_min_bearings': 3,
     'map_occupied_threshold': 65,
+    # Sensor de CO₂ (fase 2)
+    'co2_topic': '/co2/concentration',
     'log_dir': '',
     'log_prefix': 'victims',
 }
@@ -100,7 +105,19 @@ def quaternion_matrix(q):
 
 
 #: Nombre corto de cada detector en la etiqueta de los marcadores.
-SOURCE_LABELS = {'color_shape': 'color', 'human_shape': 'forma', 'thermal': 'calor'}
+SOURCE_LABELS = {'color_shape': 'color', 'human_shape': 'forma', 'thermal': 'calor',
+                 'co2': 'CO₂'}
+
+
+def _victim_msg(victim_id, position, confidence, observations, sources):
+    """Mensaje VictimDetection de una víctima confirmada."""
+    msg = VictimDetection()
+    msg.id = int(victim_id)
+    msg.position.x, msg.position.y, msg.position.z = (float(v) for v in position)
+    msg.confidence = float(confidence)
+    msg.observations = int(observations)
+    msg.sources = list(sources)
+    return msg
 
 
 def _matrix(tf):
@@ -131,22 +148,29 @@ class VictimDetector(Node):
                           for name in self.p['detectors']]
         self.rgbd_detectors = [d for d in self.detectors if d.sensor == 'rgbd']
         self.thermal_detectors = [d for d in self.detectors if d.sensor == 'thermal']
+        self.co2_detectors = [d for d in self.detectors if d.sensor == 'co2']
         self.bearing_evidence = {
             d.name: BearingEvidence(self.p['thermal_bearing_cell'],
                                     self.p['thermal_bearing_bins'],
                                     self.p['thermal_min_bearings'])
             for d in self.thermal_detectors}
         self.trackers = {
-            det.name: VictimTracker(
-                self.p['min_observations'], cell_size=self.p['evidence_cell'],
-                join_distance=self.p['join_distance'], min_cell_frames=self.p['min_cell_frames'],
-                match_distance=self.p['match_distance'], shape=det.group_shape())
+            det.name: VictimTracker(**{
+                'min_observations': self.p['min_observations'],
+                'cell_size': self.p['evidence_cell'], 'join_distance': self.p['join_distance'],
+                'min_cell_frames': self.p['min_cell_frames'],
+                'match_distance': self.p['match_distance'], 'shape': det.group_shape(),
+                **det.tracker_params()})
             for det in self.detectors}
         self.registry = VictimRegistry(self.p['merge_distance'], self.p['match_distance'])
+        self.position_sigmas = {det.name: det.position_sigma for det in self.detectors}
         self.sensor_to_base = {}
         self.map_msg = None
         self.map_grid = None
         self.thermal_frames = 0
+        self.co2_readings = 0
+        self.co2_last = None
+        self.co2_time = None
         self.thermal_last = None
         self.rays_cast = 0
         self.rays_hit = 0           # celdas de evidencia trianguladas (acumulado)
@@ -174,18 +198,21 @@ class VictimDetector(Node):
         if self.thermal_detectors:
             self.create_subscription(Image, self.p['thermal_topic'], self._on_thermal,
                                      qos_profile_sensor_data)
+        if self.co2_detectors:
+            self.create_subscription(GasConcentration, self.p['co2_topic'], self._on_co2, 10)
         if self.p['require_known_map'] or self.thermal_detectors:
             latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                                  reliability=ReliabilityPolicy.RELIABLE)
             self.create_subscription(OccupancyGrid, self.p['map_topic'], self._on_map, latched)
 
         self.marker_pub = self.create_publisher(MarkerArray, '/victims/markers', 10)
-        self.pose_pub = self.create_publisher(PoseArray, '/victims/detections', 10)
+        self.pose_pub = self.create_publisher(VictimDetectionArray, '/victims/detections', 10)
         self.debug_pub = self.create_publisher(Image, '/victims/debug_image', 2)
         self.thermal_debug_pub = self.create_publisher(Image, '/thermal/debug_image', 2)
         # Confirmaciones de cada detector por separado (métricas por modalidad).
         self.source_pubs = {det.name: self.create_publisher(
-            PoseArray, f'/victims/detections/{det.name}', 10) for det in self.detectors}
+            VictimDetectionArray, f'/victims/detections/{det.name}', 10)
+            for det in self.detectors}
         self.log_path, self._log = self._open_log()
         self.create_timer(10.0, self._report)
         self.get_logger().info(
@@ -281,6 +308,8 @@ class VictimDetector(Node):
             f'({self.points_outside_map} puntos fuera del mapa conocido); '
             + (f'térmica: {self.thermal_frames} imágenes, {self.rays_cast} rayos, '
                f'{self.rays_hit} celdas trianguladas; ' if self.thermal_detectors else '')
+            + (f'CO₂: {self.co2_readings} lecturas, última {self.co2_last or 0:.0f} ppm; '
+               if self.co2_detectors else '')
             + f'{len(self.registry.victims)} víctimas confirmadas; por detector: ' + ', '.join(
                 f'{name} {len(t.confirmed())} confirmadas/{len(t.tentative())} tentativas'
                 for name, t in self.trackers.items()))
@@ -352,6 +381,27 @@ class VictimDetector(Node):
                 self.thermal_debug_pub.get_subscription_count() > 0:
             self._publish_thermal_debug(temperature, all_detections, msg.header)
 
+    def _on_co2(self, msg):
+        """Lectura de CO₂: posición del sensor en el mapa → detector (frame global)."""
+        stamp = Time.from_msg(msg.header.stamp)
+        sec = stamp.nanoseconds * 1e-9
+        tf = self._camera_transform(msg.header.frame_id, stamp)
+        if tf is None:
+            return
+        self.co2_readings += 1
+        self.co2_last = float(msg.concentration)
+        self.co2_time = sec
+        obs = Co2Observation(concentration=float(msg.concentration),
+                             position=(tf.transform.translation.x, tf.transform.translation.y),
+                             stamp_sec=sec, frame_id=msg.header.frame_id)
+        for detector in self.co2_detectors:
+            detections = detector.detect(obs)
+            self.detections += len(detections)
+            points = np.vstack([d.points for d in detections]) if detections \
+                else np.zeros((0, 3))
+            self.trackers[detector.name].update(self._in_known_map(points), sec)
+        self._update_registry(sec, msg.header.stamp)
+
     def _triangulate(self, name, detections, world):
         """
         Puntos de evidencia (frame global) de detecciones con rayos y sin distancia.
@@ -381,7 +431,7 @@ class VictimDetector(Node):
         """Fusiona las confirmaciones de todos los detectores, registra eventos y publica."""
         newly, retracted = self.registry.update(
             {name: t.confirmed() for name, t in self.trackers.items()},
-            self.p['min_observations'])
+            self.p['min_observations'], self.position_sigmas)
         for victim in newly:
             x, y, _ = victim.position
             self.get_logger().info(
@@ -411,7 +461,7 @@ class VictimDetector(Node):
     def _publish(self, stamp):
         frame = self.p['global_frame']
         markers = [Marker(action=Marker.DELETEALL)]
-        poses = PoseArray()
+        poses = VictimDetectionArray()
         poses.header.frame_id, poses.header.stamp = frame, stamp
 
         def marker(ns, mid, mtype, xyz, scale, color):
@@ -433,10 +483,9 @@ class VictimDetector(Node):
             label.text = (f'Víctima {victim.victim_id} ({victim.confidence * 100:.0f} %, '
                           f'{"+".join(SOURCE_LABELS.get(s, s) for s in victim.sources)})')
             markers.append(label)
-            pose = Pose()
-            pose.position.x, pose.position.y = x, y
-            pose.orientation.w = 1.0
-            poses.poses.append(pose)
+            poses.victims.append(_victim_msg(victim.victim_id, victim.position,
+                                             victim.confidence, victim.observations,
+                                             victim.sources))
         mid = 0
         for tracker in self.trackers.values():
             for track in tracker.tentative():
@@ -447,13 +496,12 @@ class VictimDetector(Node):
         self.marker_pub.publish(MarkerArray(markers=markers))
         self.pose_pub.publish(poses)
         for name, pub in self.source_pubs.items():
-            per_source = PoseArray()
+            per_source = VictimDetectionArray()
             per_source.header = poses.header
             for track in self.trackers[name].confirmed():
-                pose = Pose()
-                pose.position.x, pose.position.y = track.position[0], track.position[1]
-                pose.orientation.w = 1.0
-                per_source.poses.append(pose)
+                per_source.victims.append(_victim_msg(
+                    track.victim_id, track.position,
+                    track.confidence(self.p['min_observations']), track.observations, [name]))
             pub.publish(per_source)
 
     def _publish_debug(self, rgb, detections, header):
@@ -497,7 +545,8 @@ class VictimDetector(Node):
 
     def destroy_node(self):
         """Escribe el resumen final de víctimas en el log antes de cerrar."""
-        sim_time = max(self.last_processed or 0.0, self.thermal_last or 0.0)
+        sim_time = max(self.last_processed or 0.0, self.thermal_last or 0.0,
+                       self.co2_time or 0.0)
         for victim in self.registry.victims:
             self._log_victim('final', victim, sim_time)
         if self._log is not None:

@@ -6,13 +6,17 @@
   Árbol de frames:
     base_footprint → base_link → {left_wheel_link, right_wheel_link, caster_link,
                                   lidar_link, camera_link → camera_optical_frame,
-                                  [thermal_link → thermal_optical_frame]}
-  La cámara térmica (fase 2) solo se incluye con use_thermal:=true.
+                                  [thermal_link → thermal_optical_frame], [co2_link]}
+  Los sensores de la fase 2 solo se incluyen con use_thermal:=true / use_co2:=true.
+  sim_pose:=true añade la pose real del robot (/sim/ground_truth/odom) para los simuladores de
+  sensores de usar_sim_sensors (excepción del ground truth, ver CLAUDE.md); el robot no la usa.
 -->
 <robot name="findbot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <xacro:arg name="robot_params" default="$(find usar_description)/config/robot.yaml"/>
   <xacro:arg name="use_thermal" default="false"/>
+  <xacro:arg name="use_co2" default="false"/>
+  <xacro:arg name="sim_pose" default="false"/>
   <xacro:property name="p" value="${xacro.load_yaml('$(arg robot_params)')}"/>
   <xacro:property name="ch" value="${p['chassis']}"/>
   <xacro:property name="wh" value="${p['wheels']}"/>
@@ -21,6 +25,7 @@
   <xacro:property name="ld" value="${p['lidar']}"/>
   <xacro:property name="cam" value="${p['camera']}"/>
   <xacro:property name="th" value="${p['thermal']}"/>
+  <xacro:property name="co2" value="${p['co2']}"/>
 
   <!-- ===================== Macros de inercia ===================== -->
   <xacro:macro name="box_inertia" params="m x y z ox:=0">
@@ -280,6 +285,37 @@
           </clip>
         </camera>
       </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <!-- ===================== Sensor de CO₂ (fase 2) ===================== -->
+  <!-- Gazebo no modela gases: la medida la genera usar_sim_sensors/co2_sim en este frame. -->
+  <xacro:if value="$(arg use_co2)">
+    <joint name="co2_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="co2_link"/>
+      <origin xyz="${co2['x']} ${co2['y']} ${co2['z']}" rpy="0 0 0"/>
+    </joint>
+    <link name="co2_link">
+      <visual>
+        <geometry><cylinder radius="0.01" length="0.016"/></geometry>
+        <material name="findbot_black"/>
+      </visual>
+      <xacro:box_inertia m="0.005" x="0.02" y="0.02" z="0.016"/>
+    </link>
+  </xacro:if>
+
+  <!-- Pose real del robot en el mundo, SOLO para los simuladores de sensores de la Capa 2. -->
+  <xacro:if value="$(arg sim_pose)">
+    <gazebo>
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <odom_frame>world</odom_frame>
+        <robot_base_frame>base_footprint</robot_base_frame>
+        <odom_topic>/sim/ground_truth/odom</odom_topic>
+        <odom_publish_frequency>20</odom_publish_frequency>
+        <dimensions>2</dimensions>
+      </plugin>
     </gazebo>
   </xacro:if>
 

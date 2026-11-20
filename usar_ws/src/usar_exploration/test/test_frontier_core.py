@@ -221,3 +221,56 @@ def test_straight_escape_moves_away_from_obstacle():
     assert fc.straight_escape_forward(cost, info, 0.0, 0.0, math.pi, (0.15, 0.3))
     free = np.zeros((40, 40), dtype=np.int16)
     assert fc.straight_escape_forward(free, info, 0.0, 0.0, 0.3, (0.15, 0.3))
+
+
+# ---------------------------------------------------------------------- retroceso por la huella
+def test_breadcrumbs_spacing_and_limit():
+    crumbs = fc.Breadcrumbs(spacing=0.1, max_points=50)
+    for k in range(1000):
+        crumbs.add(k * 0.01, 0.0)                     # 10 m en pasos de 1 cm
+    assert len(crumbs.points) == 50
+    gaps = np.diff(np.asarray(crumbs.points)[:, 0])
+    assert np.all(gaps >= 0.1 - 1e-9)
+
+
+def test_path_back_retraces_entry():
+    # Entró por x (0 → 3) y giró hacia y (3, 0 → 1): vuelve por donde vino.
+    crumbs = fc.Breadcrumbs(spacing=0.1)
+    for k in range(31):
+        crumbs.add(k * 0.1, 0.0)
+    for k in range(1, 11):
+        crumbs.add(3.0, k * 0.1)
+    path = crumbs.path_back(3.0, 1.0, distance=2.0, min_exit=1.0)
+    assert path[0] == pytest.approx((3.0, 1.0))
+    assert path[-1][1] == pytest.approx(0.0)
+    assert math.hypot(path[-1][0] - 3.0, path[-1][1] - 1.0) >= 1.0
+    assert all(p[1] >= 0 for p in path)              # recorre su huella, no atajos
+    assert fc.Breadcrumbs().path_back(0, 0, 2.0) == []
+
+
+def test_follow_path_reverses_when_target_behind():
+    path = [(0.0, 0.0), (-0.5, 0.0), (-1.0, 0.0)]
+    v, w, _ = fc.follow_path_command((0.0, 0.0, 0.0), path, 0.3, 0.1, 0.5)
+    assert v < 0 and abs(w) < 1e-6                   # marcha atrás, sin girar
+    v, w, _ = fc.follow_path_command((0.0, 0.0, math.pi), path, 0.3, 0.1, 0.5)
+    assert v > 0                                      # mirando hacia el camino: adelante
+
+
+def test_follow_path_turns_in_place_for_side_target():
+    v, w, _ = fc.follow_path_command((0.0, 0.0, 0.0), [(0.0, 0.0), (0.0, 1.0)], 0.3, 0.1, 0.5)
+    assert v == 0.0 and w > 0
+
+
+def test_follow_path_drives_back_along_crumbs():
+    """Simulación cinemática: el robot sigue la huella marcha atrás hasta el final."""
+    path = [(3.0 - 0.1 * k, 0.05 * math.sin(k / 5)) for k in range(25)]
+    x, y, yaw = 3.0, 0.0, 0.0
+    for _ in range(400):
+        v, w, nearest = fc.follow_path_command((x, y, yaw), path, 0.3, 0.1, 0.5)
+        path = path[nearest:] or path[-1:]
+        x += v * math.cos(yaw) * 0.1
+        y += v * math.sin(yaw) * 0.1
+        yaw += w * 0.1
+        if math.hypot(x - path[-1][0], y - path[-1][1]) < 0.15:
+            break
+    assert math.hypot(x - 0.6, y - 0.05 * math.sin(24 / 5)) < 0.2

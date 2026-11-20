@@ -27,6 +27,6 @@ evaluator:
     detections_topic: /victims/detections
     # Métricas por modalidad: cada detector publica sus propias confirmaciones (sin fusionar) en
     # <detections_topic>/<modalidad>. Se informan las que publicaron algo durante la misión.
-    modalities: ["color_shape", "human_shape", "thermal"]
+    modalities: ["color_shape", "human_shape", "thermal", "co2"]
     status_topic: /exploration/status
     image_dpi: 150

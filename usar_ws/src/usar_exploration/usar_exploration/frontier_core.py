@@ -265,3 +265,80 @@ def straight_escape_forward(cost: np.ndarray, info: GridInfo, x: float, y: float
                    for d in probe_distances]
         return max(unknown_cost if c < 0 else c for c in samples)
     return score(1.0) <= score(-1.0)
+
+
+# ---------------------------------------------------------------------- retroceso por la huella
+class Breadcrumbs:
+    """
+    Huella del recorrido del robot: puntos (x, y) separados al menos `spacing` m.
+
+    Si el robot queda encerrado en un hueco en el que el costmap ya no deja salida (al acercarse
+    se marcaron obstáculos que cierran la entrada por la que llegó), su propio recorrido es un
+    camino que ya cupo físicamente: deshacerlo es la forma más segura de salir.
+    """
+
+    def __init__(self, spacing: float = 0.1, max_points: int = 400):
+        self.spacing = float(spacing)
+        self.max_points = int(max_points)
+        self.points: List[Tuple[float, float]] = []
+
+    def add(self, x: float, y: float) -> None:
+        """Añade la posición si se alejó `spacing` del último punto."""
+        if not self.points or math.hypot(x - self.points[-1][0],
+                                         y - self.points[-1][1]) >= self.spacing:
+            self.points.append((float(x), float(y)))
+            if len(self.points) > self.max_points:
+                del self.points[0]
+
+    def path_back(self, x: float, y: float, distance: float, min_exit: float = 0.0
+                  ) -> List[Tuple[float, float]]:
+        """
+        Camino de vuelta desde (x, y) por la huella, de al menos `distance` m de recorrido.
+
+        Empieza en el punto de la huella más cercano al robot y retrocede en el tiempo; termina
+        cuando ha recorrido `distance` y el punto está a más de `min_exit` m de (x, y) en línea
+        recta (fuera del hueco). Vacío si no hay huella.
+        """
+        if not self.points:
+            return []
+        pts = np.asarray(self.points)
+        start = int(np.argmin(np.hypot(pts[:, 0] - x, pts[:, 1] - y)))
+        path, travelled = [], 0.0
+        prev = (x, y)
+        for i in range(start, -1, -1):
+            p = self.points[i]
+            travelled += math.hypot(p[0] - prev[0], p[1] - prev[1])
+            path.append(p)
+            prev = p
+            if travelled >= distance and math.hypot(p[0] - x, p[1] - y) >= min_exit:
+                break
+        return path
+
+
+def follow_path_command(pose: Tuple[float, float, float], path: Sequence[Tuple[float, float]],
+                        lookahead: float, speed: float, turn_speed: float,
+                        turn_in_place: float = 0.7) -> Tuple[float, float, int]:
+    """
+    Orden (v, ω) para seguir un camino con persecución pura, hacia delante o marcha atrás.
+
+    Avanza hacia el primer punto del camino a más de `lookahead`; si ese punto queda detrás del
+    robot (a más de 90°), va marcha atrás (no hace falta girar en un hueco estrecho). Si el error
+    de rumbo supera `turn_in_place`, solo gira. Devuelve también el índice del punto del camino
+    más cercano al robot (para descartar lo ya recorrido).
+    """
+    x, y, yaw = pose
+    pts = np.asarray(path, dtype=float)
+    dists = np.hypot(pts[:, 0] - x, pts[:, 1] - y)
+    nearest = int(np.argmin(dists))
+    ahead = np.nonzero(dists[nearest:] >= lookahead)[0]
+    target = pts[nearest + ahead[0]] if len(ahead) else pts[-1]
+    bearing = math.atan2(target[1] - y, target[0] - x)
+    err = math.atan2(math.sin(bearing - yaw), math.cos(bearing - yaw))
+    direction = 1.0
+    if abs(err) > math.pi / 2:                       # objetivo detrás: marcha atrás
+        direction = -1.0
+        err = math.atan2(math.sin(err - math.pi), math.cos(err - math.pi))
+    omega = max(-turn_speed, min(turn_speed, 2.0 * err))
+    if abs(err) > turn_in_place:
+        return 0.0, omega, nearest
+    return direction * speed * max(0.3, math.cos(err)), omega, nearest

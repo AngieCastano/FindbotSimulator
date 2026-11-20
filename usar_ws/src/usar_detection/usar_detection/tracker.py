@@ -276,9 +276,13 @@ class VictimRegistry:
     """
     Une las víctimas confirmadas por cada detector y mantiene una numeración común.
 
-    Dos confirmaciones de detectores distintos a menos de merge_distance son la misma víctima
-    (posición: media ponderada por las observaciones). La fusión completa de evidencias de
-    signos de vida es la Fase 13; aquí solo se evita publicar dos veces la misma víctima.
+    Dos confirmaciones de detectores distintos a menos de merge_distance son la misma víctima.
+    La posición es la media ponderada por la precisión de cada detector (1/σ², `sigmas`): el
+    CO₂ ubica con un error de ≈ 1 m y la forma con ≈ 0.3 m; el número de observaciones no
+    cuenta (cada sensor tiene su propia frecuencia). Dos confirmaciones del mismo detector nunca
+    se unen: si la forma ve dos víctimas cercanas, una estimación de CO₂ entre ambas se asocia a
+    la más cercana en vez de juntarlas. La fusión completa de evidencias de signos de vida es la
+    Fase 13; aquí solo se evita publicar dos veces la misma víctima.
     """
 
     def __init__(self, merge_distance: float = 1.0, match_distance: float = 1.0):
@@ -289,23 +293,31 @@ class VictimRegistry:
         self._confirmed_ids: Set[int] = set()
         self.victims: List[FusedVictim] = []
 
-    def update(self, confirmed: Dict[str, List[Track]],
-               min_observations: int) -> Tuple[List[FusedVictim], List[int]]:
-        """Recalcula las víctimas; devuelve (nuevas, números que dejaron de estar confirmados)."""
+    def update(self, confirmed: Dict[str, List[Track]], min_observations: int,
+               sigmas: Optional[Dict[str, float]] = None
+               ) -> Tuple[List[FusedVictim], List[int]]:
+        """
+        Recalcula las víctimas; devuelve (nuevas, números que dejaron de estar confirmados).
+
+        sigmas: error de localización típico (m) de cada detector; por defecto 1 para todos.
+        """
+        sigmas = sigmas or {}
+        # Primero los detectores más precisos (y, a igualdad, las víctimas con más evidencia).
         entries = sorted(((name, t) for name, tracks in confirmed.items() for t in tracks),
-                         key=lambda e: -e[1].observations)
+                         key=lambda e: (sigmas.get(e[0], 1.0), -e[1].observations))
         clusters: List[Dict] = []
         for name, track in entries:
             x, y, z = track.position
-            for cluster in clusters:
-                cx, cy = cluster['xy']
-                if math.hypot(x - cx, y - cy) < self.merge_distance:
-                    break
+            options = [c for c in clusters if name not in c['sources']
+                       and math.hypot(x - c['xy'][0], y - c['xy'][1]) < self.merge_distance]
+            if options:
+                cluster = min(options, key=lambda c: math.hypot(x - c['xy'][0],
+                                                                y - c['xy'][1]))
             else:
                 cluster = {'xy': (x, y), 'sum': np.zeros(3), 'w': 0.0, 'sources': set(),
                            'obs': 0, 'conf': 0.0}
                 clusters.append(cluster)
-            w = float(track.observations)
+            w = 1.0 / max(sigmas.get(name, 1.0), 1e-3) ** 2
             cluster['sum'] += w * np.array([x, y, z])
             cluster['w'] += w
             cluster['xy'] = tuple(cluster['sum'][:2] / cluster['w'])

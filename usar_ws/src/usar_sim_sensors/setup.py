@@ -28,6 +28,7 @@ setup(
     entry_points={
         'console_scripts': [
             'thermal_camera_sim = usar_sim_sensors.thermal_camera_sim:main',
+            'co2_sim = usar_sim_sensors.co2_sim:main',
         ],
     },
 )

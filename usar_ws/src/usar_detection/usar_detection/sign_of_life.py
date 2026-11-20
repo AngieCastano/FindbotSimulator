@@ -43,6 +43,16 @@ class ThermalObservation:
 
 
 @dataclass
+class Co2Observation:
+    """Lectura de un sensor de gas puntual (CO₂), con la posición del sensor en el mapa."""
+
+    concentration: float                 # ppm
+    position: Tuple[float, float]        # (x, y) del sensor en el frame global (map)
+    stamp_sec: float = 0.0
+    frame_id: str = ''
+
+
+@dataclass
 class Detection:
     """Una detección de un signo de vida."""
 
@@ -67,7 +77,10 @@ class SignOfLifeDetector(ABC):
 
     #: Nombre con el que se selecciona el detector en los parámetros (lista `detectors`).
     name = 'base'
-    #: Sensor que consume: 'rgbd' (Observation) o 'thermal' (ThermalObservation).
+    #: Error de localización típico (m): pesa la posición al unir detectores distintos.
+    position_sigma = 0.3
+    #: Sensor que consume: 'rgbd' (Observation), 'thermal' (ThermalObservation) o 'co2'
+    #: (Co2Observation; sus detecciones ya vienen en el frame global).
     sensor = 'rgbd'
 
     def __init__(self, params: Dict):
@@ -80,6 +93,10 @@ class SignOfLifeDetector(ABC):
     def debug_mask(self) -> Optional[np.ndarray]:
         """Máscara de la última detección, para visualización (opcional)."""
         return None
+
+    def tracker_params(self) -> Dict[str, float]:
+        """Parámetros del mapa de evidencia propios de este detector (p. ej. celdas mayores)."""
+        return {}
 
     def group_shape(self) -> Optional[Dict[str, float]]:
         """

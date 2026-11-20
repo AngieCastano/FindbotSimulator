@@ -1,0 +1,21 @@
+# Se añade encima de detector.yaml con use_co2:=true (exploration.launch.py añade "co2" a la lista
+# de detectores). Ver docs/fase10_co2.md.
+victim_detector:
+  ros__parameters:
+    co2_topic: /co2/concentration   # usar_msgs/GasConcentration (ESP32 o usar_sim_sensors)
+
+    co2:
+      response_tau: 20.0            # s: constante de tiempo del TGS4161 (fabricante)
+      smooth_window: 4.0            # s: ventana para estimar la pendiente de la lectura
+      ambient_ppm: 400.0            # línea base mientras hay pocas celdas medidas
+      baseline_percentile: 50.0     # línea base: mediana de las celdas (casi todo es aire limpio)
+      min_baseline_cells: 30
+      grid_cell: 0.25               # m: celdas del mapa de concentración
+      excess_threshold: 250.0       # ppm sobre la línea base para considerar una zona
+      cluster_join: 2.0             # m: zonas con exceso más cercanas son una sola fuente (el CO₂
+                                    #   no separa víctimas más próximas)
+      min_cells: 3                  # celdas con exceso para estimar una fuente
+      fit_radius: 2.0               # m: búsqueda de la fuente alrededor de la celda máxima
+      fit_step: 0.1                 # m
+      decay_length: 1.0             # m: modelo de dispersión supuesto (exceso ∝ exp(−r/L))
+      evidence_height: 0.1          # m (solo visualización)

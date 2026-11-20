@@ -23,9 +23,10 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from usar_worldgen.worlds import resolve_world_params
+import yaml
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'rviz_config',
-                  'use_thermal']
+                  'use_thermal', 'use_co2']
 
 
 def generate_launch_description():
@@ -52,11 +53,19 @@ def generate_launch_description():
         seed = LaunchConfiguration('seed').perform(context)
         _, tag = resolve_world_params(LaunchConfiguration('world_params').perform(context))
         variant = f'_{tag}' if tag else ''
-        params = [LaunchConfiguration('detector_params').perform(context)]
-        if LaunchConfiguration('use_thermal').perform(context).lower() == 'true':
-            # Añade el detector térmico a la lista de signos de vida activos.
-            params.append(os.path.join(get_package_share_directory('usar_detection'), 'config',
-                                       'detector_thermal.yaml'))
+        base_params = LaunchConfiguration('detector_params').perform(context)
+        params = [base_params]
+        with open(base_params, encoding='utf-8') as stream:
+            detectors = list(yaml.safe_load(stream)['victim_detector']['ros__parameters']
+                             .get('detectors', []))
+        # Sensores de la fase 2: su detector se añade a la lista y sus parámetros encima.
+        detection_config = os.path.join(get_package_share_directory('usar_detection'), 'config')
+        for arg, name, overlay in (('use_thermal', 'thermal', 'detector_thermal.yaml'),
+                                   ('use_co2', 'co2', 'detector_co2.yaml')):
+            if LaunchConfiguration(arg).perform(context).lower() == 'true':
+                detectors.append(name)
+                params.append(os.path.join(detection_config, overlay))
+        params.append({'detectors': detectors})
         return [Node(package='usar_detection', executable='victim_detector',
                      name='victim_detector', output='screen',
                      parameters=[*params,
@@ -76,6 +85,8 @@ def generate_launch_description():
         DeclareLaunchArgument('rviz', default_value='true', description='Abrir RViz'),
         DeclareLaunchArgument('use_thermal', default_value='false',
                               description='Cámara térmica MLX90640 y detector de calor (fase 2)'),
+        DeclareLaunchArgument('use_co2', default_value='false',
+                              description='Sensor de CO₂ TGS4161 y detector de CO₂ (fase 2)'),
         DeclareLaunchArgument('rviz_config', default_value=os.path.join(
             bringup_share, 'rviz', 'exploration.rviz')),
         DeclareLaunchArgument('explorer_params', default_value=os.path.join(

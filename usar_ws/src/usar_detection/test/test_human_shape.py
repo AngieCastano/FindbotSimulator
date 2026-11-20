@@ -245,3 +245,17 @@ def test_known_cells_mask():
     mask = known_cells_mask(pts, data.ravel(), 0.0, 0.0, 0.1, 10, 10)
     assert mask.tolist() == [True, False, True, False, False]
     assert known_cells_mask(np.zeros((0, 3)), data.ravel(), 0, 0, 0.1, 10, 10).size == 0
+
+
+def test_registry_does_not_merge_same_detector_and_weights_precision():
+    # La forma ve dos víctimas a 1.5 m; una estimación de CO₂ entre ambas no las une y apenas
+    # mueve la posición de la más cercana.
+    reg = VictimRegistry(merge_distance=1.0)
+    shape = [_confirmed(0.0, 0.0, obs=10, vid=1), _confirmed(1.5, 0.0, obs=10, vid=2)]
+    co2 = [_confirmed(0.7, 0.0, obs=2000, vid=1)]
+    reg.update({'human_shape': shape, 'co2': co2}, 5, {'human_shape': 0.3, 'co2': 1.0})
+    assert len(reg.victims) == 2
+    xs = sorted(v.position[0] for v in reg.victims)
+    assert xs[0] == pytest.approx(0.0, abs=0.07) and xs[1] == pytest.approx(1.5, abs=0.07)
+    merged = [v for v in reg.victims if 'co2' in v.sources]
+    assert len(merged) == 1

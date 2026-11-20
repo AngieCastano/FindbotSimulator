@@ -64,3 +64,10 @@ thermal:                # cámara térmica MLX90640 (versión BAA, 55° × 35°)
   horizontal_fov: 0.96  # 55°; Gazebo usa píxeles cuadrados: el vertical queda en ≈ 42° (real 35°)
   near: 0.1
   far: 20.0
+
+co2:                    # sensor de CO₂ Figaro TGS4161 (fase 2: use_co2:=true)
+  # Posición respecto a base_link tomada de hardware/CLAUDE.md (Geometría). Pendiente: alinear
+  # toda la geometría del robot simulado con el hardware.
+  x: 0.03
+  y: 0.05
+  z: 0.0275
