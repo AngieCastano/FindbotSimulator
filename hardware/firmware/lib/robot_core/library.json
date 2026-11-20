@@ -1,0 +1,10 @@
+{
+  "name": "robot_core",
+  "version": "0.1.0",
+  "description": "Lógica pura del robot (PID, cinemática, odometría, batería, sensores): sin Arduino, probada en native",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "flags": "-Wall -Wextra -Werror"
+  }
+}

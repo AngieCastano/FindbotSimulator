@@ -109,6 +109,26 @@ y `/odom` va de `odom` a `base_footprint`, igual que en el xacro.
   corre el ERC (debe dar 0 errores y 0 advertencias), verifica la netlist contra la tabla de pines
   y los valores de la H2 (`check_netlist.py`) y exporta `out/findbot.pdf` y `out/findbot_bom.csv`.
 
+- Firmware (desde `hardware/firmware/`, `pio` está en `~/.local/bin`):
+  `pio run -e esp32` (compilar), `pio test -e native` (pruebas en el PC),
+  `python3 tools/gen_config.py --check` (config_gen.h y platformio.ini al día con el YAML),
+  `pio run -e esp32 -t upload && pio device monitor` (con el ESP32 conectado).
+
+## Firmware (H4)
+- `include/config_gen.h` lo genera `tools/gen_config.py` desde `robot_hw.yaml` en cada compilación
+  (script previo `tools/pio_pre.py`). **Nunca editarlo a mano**; se versiona para poder leerlo.
+- `lib/robot_core/`: lógica pura sin Arduino (PID con anti-windup, cinemática y odometría,
+  límite de PWM a 6 V con zona muerta, batería con histéresis, vigilante de comandos, IMU, CO₂,
+  RMS del radar) → probada con 35 pruebas nativas (`test/`).
+- `src/`: controladores (LEDC 20 kHz, PCNT ×4 con acumulador de desbordes o ISR de respaldo,
+  MPU6050 por registros, ADC1 calibrado) y `main.cpp` con tareas periódicas.
+- Mientras no exista micro-ROS (H6), el firmware habla texto por serial a 921600 baudios:
+  mandos `v <m/s> <rad/s>`, `s`, `h 0|1`, `c`, `r`; telemetría `T,...` en CSV a 10 Hz
+  (la cabecera de columnas se imprime al arrancar).
+- Seguridad: sin mando durante 0,5 s → motores a 0; batería crítica → STBY en bajo.
+- Por ajustar con el robot real: sentido de motores y encoders (`firmware.*_invert_*`),
+  zona muerta, ganancias del PID y pendiente del TGS4161.
+
 ## Esquemático (H3) — placa base con módulos
 - **`gen_schematic.py` es la fuente**: los cambios hechos a mano en KiCad se pierden al regenerar.
   Para cambiar algo, edita `robot_hw.yaml` (valores, pines) o el generador (componentes) y corre `build.sh`.

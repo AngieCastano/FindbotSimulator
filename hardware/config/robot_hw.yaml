@@ -135,6 +135,7 @@ analog:
     out_r: 1000
     out_c: 1.0e-6
     sample_rate: 200
+    adc_attenuation_db: 11   # VREF 1.65 V ± 1.1 V; sobre 2.45 V el ADC pierde linealidad
     test_amplitude: 2.5e-4   # V pico por tono en la prueba transitoria (0.3 Hz + 10 Hz)
   heater:                 # calefactor TGS4161 conmutado por AO3400 en el lado bajo
     v_supply: 5.0
@@ -155,6 +156,46 @@ board:
   c_bulk_vbat: 4.7e-4       # electrolítico en VBAT
   c_bulk_5v: 1.0e-4         # electrolíticos en 5V_USB, 5V_AUX y VM del TB6612
   c_decoupling: 1.0e-7
+
+# ---------------------------------------------------------------------------------------------
+# Firmware del ESP32 (H4). tools/gen_config.py convierte esto + lo anterior en include/config_gen.h
+# ---------------------------------------------------------------------------------------------
+firmware:
+  rates_hz:
+    control: 50           # PID de ruedas + odometría
+    imu: 100
+    radar: 200            # muestreo del ADC del radar (banda útil < 50 Hz)
+    slow: 1               # batería y CO2
+    telemetry: 10         # línea de texto por serial (H4/H5; en H6 lo reemplaza micro-ROS)
+  cmd_timeout_s: 0.5      # sin /cmd_vel durante este tiempo → motores a 0
+  encoder_backend: pcnt   # pcnt (contador por hardware) | isr (interrupciones, respaldo para Wokwi)
+  encoder_glitch_filter_ticks: 100   # filtro PCNT en ciclos de APB (80 MHz) → 1.25 µs
+  # Sentido: los motores van montados en espejo. Ajustar en la primera prueba real para que
+  # v > 0 avance y las cuentas de ambos encoders crezcan al avanzar.
+  motor_invert_left: false
+  motor_invert_right: true
+  encoder_invert_left: false
+  encoder_invert_right: true
+  pid:                    # salida = fracción de la tensión nominal del motor; entrada en rad/s de rueda
+    kp: 0.02
+    ki: 0.2
+    kd: 0.0
+    i_limit: 0.3
+    out_limit: 1.0
+  motor_deadband: 0.12    # duty mínimo que vence la fricción del TT (medir en el robot)
+  battery_filter_alpha: 0.2
+  battery_hysteresis_v: 0.1
+  imu:
+    accel_range_g: 2      # ±2 g
+    gyro_range_dps: 250   # ±250 °/s
+    dlpf_cfg: 3           # filtro interno de 44 Hz
+    calib_samples: 200    # muestras con el robot quieto para el sesgo del giróscopo
+    i2c_address: 0x68     # AD0 a GND en la placa (H3)
+    i2c_hz: 400000
+  co2:
+    slope_v_per_decade: 0.05   # ΔFEM por década de CO2 (hoja de datos: 0.044–0.072; calibrar)
+    ref_ppm: 400               # concentración de la línea base (aire limpio)
+  radar_rms_window: 200        # muestras (1 s a 200 Hz)
 
 # ---------------------------------------------------------------------------------------------
 # Geometría (la copia la sesión de simulación al xacro). Posiciones respecto a base_link.
