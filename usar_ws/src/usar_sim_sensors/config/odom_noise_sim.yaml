@@ -1,0 +1,18 @@
+# Ruido de los encoders de rueda sobre la odometría ideal de DiffDrive (Capa 2, solo simulación).
+# Varianza por incremento proporcional a lo recorrido (paseo aleatorio): el error acumulado no
+# depende de la frecuencia de publicación. Referencias de magnitud con estos valores:
+#   100 m en línea recta     → σ avance ≈ sqrt(0.0005·100) = 0.22 m, σ rumbo ≈ 4°
+#   300 rad girados (misión) → σ rumbo ≈ sqrt(0.00005·300) = 7°
+# El patinaje real (ruedas que giran contra escombros) ya lo produce la física de Gazebo.
+odom_noise_sim:
+  ros__parameters:
+    input_topic: /sim/wheel_odom   # DiffDrive: encoders ideales (solo para este simulador)
+    output_topic: /odom            # mismo tópico y mensaje que publica el ESP32
+    publish_tf: true               # TF odom → base_footprint (en el robot real la da el ESP32)
+    k_ss: 0.0005     # m²/m: error de avance por metro (radio de rueda, cuantización)
+    k_st: 0.0001     # m²/rad: error de avance por radián girado
+    k_ts: 0.00005    # rad²/m: error de rumbo por metro (diferencia de radios entre ruedas)
+    k_tt: 0.00005    # rad²/rad: error de rumbo por radián girado (separación de ruedas, contacto)
+    sigma_v: 0.005   # m/s: ruido de la velocidad lineal medida
+    sigma_w: 0.01    # rad/s: ruido de la velocidad angular medida
+    seed: 0          # semilla del ruido (sim.launch.py pasa la del mundo)

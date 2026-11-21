@@ -16,7 +16,7 @@ firmware deben tener exactamente estos elementos, con los mismos nombres de tóp
 | # | Elemento | Modelo real (referencia) | Conexión física | En Gazebo | Tópico ROS 2 | Para qué sirve | Estado |
 |---|---|---|---|---|---|---|---|
 | 1 | 2 motorreductores | TT 1:48 con encoder | TB6612FNG ← ESP32 | DiffDrive | `/cmd_vel` (entrada) | Mover el robot | MVP |
-| 2 | 2 encoders de rueda | Hall de cuadratura del motor | ESP32 (GPIO con interrupción) | DiffDrive (odom) | `/odom`, `/joint_states` | Odometría para SLAM y Nav2 | MVP |
+| 2 | 2 encoders de rueda | Hall de cuadratura del motor | ESP32 (GPIO con interrupción) | DiffDrive (`/sim/wheel_odom`) + `usar_sim_sensors/odom_noise_sim` (ruido de encoders; publica también la TF odom→base_footprint) | `/odom`, `/joint_states` | Odometría para SLAM y Nav2 | MVP |
 | 3 | IMU 6 ejes | MPU6050 | ESP32 por I2C | sensor `imu` | `/imu/data_raw` | Corregir el giro (yaw) de la odometría | MVP |
 | 4 | LiDAR 2D 360° | RPLiDAR A1 | Computador por USB | `gpu_lidar` | `/scan` | Mapa (SLAM) y obstáculos | MVP |
 | 5 | Cámara RGB-D | Intel RealSense D435 u Orbbec Astra | Computador por USB | `rgbd_camera` | `/camera/image`, `/camera/depth_image`, `/camera/camera_info` | Detectar víctimas (forma humana) y obstáculos bajos | MVP |

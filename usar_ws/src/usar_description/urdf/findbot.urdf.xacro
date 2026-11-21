@@ -357,8 +357,11 @@
       <min_angular_acceleration>${-dd['max_angular_acceleration']}</min_angular_acceleration>
       <odom_publish_frequency>${dd['odom_publish_frequency']}</odom_publish_frequency>
       <topic>/cmd_vel</topic>
-      <odom_topic>/odom</odom_topic>
-      <tf_topic>/tf</tf_topic>
+      <!-- Odometría ideal de los encoders (incluye el patinaje real). La lee solo
+           usar_sim_sensors/odom_noise_sim, que añade el ruido de los encoders y publica
+           /odom y la TF odom → base_footprint. Su TF no se puentea a ROS. -->
+      <odom_topic>/sim/wheel_odom</odom_topic>
+      <tf_topic>/sim/wheel_odom/tf</tf_topic>
       <frame_id>odom</frame_id>
       <child_frame_id>base_footprint</child_frame_id>
     </plugin>

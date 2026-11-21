@@ -11,16 +11,13 @@
   gz_type_name: gz.msgs.Twist
   direction: ROS_TO_GZ
 
-- ros_topic_name: /odom
-  gz_topic_name: /odom
+# Odometría ideal de DiffDrive (encoders perfectos + patinaje). Solo la lee
+# usar_sim_sensors/odom_noise_sim, que publica /odom y la TF odom → base_footprint con el ruido
+# de los encoders reales (excepción de la Capa 2, ver CLAUDE.md).
+- ros_topic_name: /sim/wheel_odom
+  gz_topic_name: /sim/wheel_odom
   ros_type_name: nav_msgs/msg/Odometry
   gz_type_name: gz.msgs.Odometry
-  direction: GZ_TO_ROS
-
-- ros_topic_name: /tf
-  gz_topic_name: /tf
-  ros_type_name: tf2_msgs/msg/TFMessage
-  gz_type_name: gz.msgs.Pose_V
   direction: GZ_TO_ROS
 
 - ros_topic_name: /joint_states

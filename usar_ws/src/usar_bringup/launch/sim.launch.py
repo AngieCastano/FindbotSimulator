@@ -100,6 +100,11 @@ def _launch_setup(context):
     # Pose real y simuladores de la Capa 2 que la necesitan (excepción del ground truth).
     sim_sensors = []
     sim_sensors_share = get_package_share_directory('usar_sim_sensors')
+    # Ruido de los encoders: siempre en simulación (DiffDrive solo da la odometría ideal).
+    sim_sensors.append(Node(
+        package='usar_sim_sensors', executable='odom_noise_sim', output='screen',
+        parameters=[os.path.join(sim_sensors_share, 'config', 'odom_noise_sim.yaml'),
+                    {'use_sim_time': True, 'seed': seed}]))
     if sim_pose:
         sim_sensors.append(Node(
             package='ros_gz_bridge', executable='parameter_bridge', name='sim_pose_bridge',

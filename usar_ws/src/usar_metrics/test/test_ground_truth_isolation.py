@@ -17,7 +17,9 @@ el ground truth y la pose real (/sim/*). Se comprueba que:
 - la pose real solo existe con sim_pose:=true y va a /sim/*,
 - de /sim/* el evaluador (que no publica nada) solo lee la pose real, para el error de
   localización del robot,
-- sim.launch.py entrega la ruta del ground truth solo a nodos de usar_sim_sensors.
+- sim.launch.py entrega la ruta del ground truth solo a nodos de usar_sim_sensors,
+- la odometría (/odom) sale de los encoders simulados (DiffDrive → odom_noise_sim), que nunca
+  leen la pose real.
 """
 
 import ast
@@ -30,8 +32,11 @@ SRC = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 # usar_sim_sensors NO está en la lista: es la excepción de la Capa 2 (ver docstring).
 ROBOT_PACKAGES = ['usar_description', 'usar_bringup', 'usar_exploration', 'usar_detection']
 SIM_SENSORS = 'usar_sim_sensors'
-#: Mensajes que puede publicar un simulador de sensores: solo medidas.
-MEASUREMENT_TYPES = {'Image', 'GasConcentration', 'SoundDirection'}
+#: Mensajes que puede publicar un simulador de sensores: solo medidas. Odometry es la medida de
+#: los encoders de rueda (odom_noise_sim), que se calcula solo con la odometría ideal de DiffDrive.
+MEASUREMENT_TYPES = {'Image', 'GasConcentration', 'SoundDirection', 'Odometry'}
+#: Archivos del simulador de encoders: no pueden usar la pose real ni el ground truth.
+WHEEL_ODOM_FILES = ['odom_noise_sim.py', 'odom_model.py']
 #: Archivos del robot autorizados a nombrar el ground truth, y por qué.
 ALLOWED = {
     os.path.join('usar_bringup', 'launch', 'mission.launch.py'):
@@ -204,7 +209,8 @@ def test_bridge_does_not_expose_model_poses(bridge_file):
     # La imagen térmica es una medida del sensor (temperatura por píxel), no una posición.
     allowed = {'/clock', '/cmd_vel', '/odom', '/tf', '/joint_states', '/scan', '/camera/image',
                '/camera/depth_image', '/camera/camera_info', '/sim/thermal/image_raw',
-               '/sim/ground_truth/odom'}  # pose real: solo para usar_sim_sensors
+               '/sim/ground_truth/odom',  # pose real: solo para usar_sim_sensors
+               '/sim/wheel_odom'}  # encoders ideales: solo para odom_noise_sim
     topics = {e['gz_topic_name'] for e in entries}
     assert topics <= allowed, f'Tópicos de Gazebo no auditados en el puente: {topics - allowed}'
     for entry in entries:
@@ -225,6 +231,25 @@ def test_robot_odometry_comes_from_wheels():
     assert 'gz-sim-diff-drive-system' in text
     for plugin in ('odometry-publisher', 'pose-publisher'):
         assert plugin not in text, f'Plugin que publica la pose real: {plugin}'
+
+
+def test_wheel_odometry_goes_through_noise_sim():
+    """La odometría de DiffDrive va a /sim/wheel_odom; /odom y su TF los da odom_noise_sim."""
+    text = _robot_urdf()
+    assert '<odom_topic>/sim/wheel_odom</odom_topic>' in text
+    assert '<tf_topic>/tf</tf_topic>' not in text
+
+
+def test_wheel_odometry_does_not_use_real_pose():
+    """El simulador de encoders solo lee la odometría ideal, nunca la pose real ni el GT."""
+    root = os.path.join(SRC, SIM_SENSORS)
+    for name in WHEEL_ODOM_FILES:
+        path = os.path.join(root, SIM_SENSORS, name)
+        assert ground_truth_uses(path) == [], name
+    with open(os.path.join(root, 'config', 'odom_noise_sim.yaml'), 'r', encoding='utf-8') as f:
+        params = yaml.safe_load(f)['odom_noise_sim']['ros__parameters']
+    assert params['input_topic'] == '/sim/wheel_odom'
+    assert params['output_topic'] == '/odom'
 
 
 def test_real_pose_only_for_sim_sensors():

@@ -64,8 +64,32 @@ ocasional y no se reprodujo. Se mantiene el diseño actual y se pasa a la Fase 1
 métrica de error de localización como parte permanente de la evaluación, que además sirve
 para reportar en el informe que la odometría sola no basta en escombros (patinaje) y SLAM sí.
 
-Mejoras posibles, no aplicadas (no son necesarias para el MVP):
-- Bajar el empuje de los escapes de último recurso o cortarlos al detectar patinaje (diferencia
-  entre `/odom` y el avance que ve el LiDAR).
-- Añadir ruido gaussiano a la odometría de Gazebo para que se parezca más a los encoders reales
-  (la tabla de CLAUDE.md lo pide en la Capa 2; hoy solo hay patinaje).
+Mejora posible, no aplicada (no es necesaria para el MVP): bajar el empuje de los escapes de
+último recurso o cortarlos al detectar patinaje (diferencia entre `/odom` y el avance que ve el
+LiDAR).
+
+## 5. Ruido de los encoders en la odometría (aplicado)
+
+Estas 6 misiones mostraron que la odometría de Gazebo no tenía ruido (solo patinaje), aunque la
+Capa 2 lo pide. Se añadió `usar_sim_sensors/odom_noise_sim`:
+
+- DiffDrive publica la odometría ideal en `/sim/wheel_odom` (su TF ya no se puentea a ROS).
+- El nodo suma ruido gaussiano a cada incremento (avance Δs, giro Δθ) con varianza proporcional
+  a lo recorrido, `σ_s² = k_ss·|Δs| + k_st·|Δθ|`, `σ_θ² = k_ts·|Δs| + k_tt·|Δθ|`, integra la
+  pose y publica `/odom` (con covarianzas) y la TF `odom → base_footprint`. Parámetros en
+  `usar_sim_sensors/config/odom_noise_sim.yaml`; ruido reproducible con la semilla del mundo.
+- Solo lee la odometría de las ruedas, nunca la pose real (lo comprueba
+  `test_wheel_odometry_does_not_use_real_pose`). En el robot real `/odom` lo publica el ESP32.
+
+Misión de verificación (semilla 1, sin sonido, `results/odom_noise/`):
+
+| | Sin ruido (sección 2) | Con ruido |
+|---|---|---|
+| Error odometría medio / máx. | 0.41 / 2.77 m (solo patinaje, a saltos) | 0.63 / 1.49 m (deriva continua) |
+| Error de rumbo de la odometría, máx. | 14.5° | 9.6° |
+| Error SLAM medio / máx. / final | 0.15 / 0.27 / 0.25 m | 0.14 / 0.42 / 0.05 m |
+| Víctimas / falsos positivos / cobertura | 3/5, 0, 98.7 % | 3/5, 0, 98.6 % |
+
+La odometría ahora deriva de forma continua, como unos encoders reales, y SLAM la sigue
+corrigiendo: el error de SLAM sube despacio hasta 0.42 m y un cierre de lazo a los 795 s lo
+devuelve a 0.05 m. La misión no empeoró.
