@@ -67,8 +67,8 @@ OK  stress_temp      radar_vref_t160      1.294   [1.25, 1.35]
 OK  stress_temp      heater_v_t90      4.998   [4.8, 5.2]
 OK  stress_temp      heater_v_t160      4.998   [4.8, 5.2]
 OK  stress_noise     bat_ripple_mv      2.644   [-, 5.0]
-OK  stress_noise     radar_snr_db      43.51   [20.0, -]
-OK  stress_noise     radar_noisy_max      2.366   [-, 2.45]
-OK  stress_noise     radar_noisy_min       0.24   [0.15, -]
+OK  stress_noise     radar_snr_db      43.71   [20.0, -]
+OK  stress_noise     radar_noisy_max      2.363   [-, 2.45]
+OK  stress_noise     radar_noisy_min     0.2364   [0.15, -]
 
 72 criterios, 0 fallas
