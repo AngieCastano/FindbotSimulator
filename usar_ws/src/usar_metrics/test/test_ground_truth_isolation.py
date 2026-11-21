@@ -15,6 +15,8 @@ el ground truth y la pose real (/sim/*). Se comprueba que:
 - solo publican mensajes de medida de sensor (nunca poses, marcadores ni detecciones),
 - ningún otro paquete del robot nombra un tópico /sim/* salvo la configuración del puente,
 - la pose real solo existe con sim_pose:=true y va a /sim/*,
+- de /sim/* el evaluador (que no publica nada) solo lee la pose real, para el error de
+  localización del robot,
 - sim.launch.py entrega la ruta del ground truth solo a nodos de usar_sim_sensors.
 """
 
@@ -153,8 +155,7 @@ def test_sim_sensors_publish_only_measurements():
         f'Mensajes no permitidos: {published - MEASUREMENT_TYPES}'
 
 
-@pytest.mark.parametrize('package', ['usar_bringup', 'usar_exploration', 'usar_detection',
-                                     'usar_metrics'])
+@pytest.mark.parametrize('package', ['usar_bringup', 'usar_exploration', 'usar_detection'])
 def test_robot_does_not_subscribe_to_sim_topics(package):
     """Los tópicos /sim/* (pose real, imagen cruda) solo los usan los simuladores de sensores."""
     offending = []
@@ -169,6 +170,20 @@ def test_robot_does_not_subscribe_to_sim_topics(package):
                 if "'/sim/" in text or ' /sim/' in text:
                     offending.append(os.path.relpath(path, SRC))
     assert not offending, f'Archivos del robot que nombran /sim/*: {offending}'
+
+
+def test_evaluator_only_reads_real_pose():
+    """De /sim/* el evaluador solo nombra la pose real (para el error de localización)."""
+    import re
+    found = set()
+    root = os.path.join(SRC, 'usar_metrics')
+    for base, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in ('test', '__pycache__')]
+        for name in files:
+            if name.endswith(('.py', '.yaml')):
+                with open(os.path.join(base, name), 'r', encoding='utf-8') as stream:
+                    found |= set(re.findall(r'/sim/[\w/]+', stream.read()))
+    assert found <= {'/sim/ground_truth/odom'}, f'/sim/* no permitidos en el evaluador: {found}'
 
 
 def test_evaluator_publishes_nothing():

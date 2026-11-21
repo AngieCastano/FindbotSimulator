@@ -42,8 +42,9 @@ def _launch_setup(context):
     use_thermal = LaunchConfiguration('use_thermal').perform(context).lower() == 'true'
     use_co2 = LaunchConfiguration('use_co2').perform(context).lower() == 'true'
     use_sound = LaunchConfiguration('use_sound').perform(context).lower() == 'true'
-    # Pose real del robot: solo la necesitan los simuladores de gases/sonido/radar.
-    sim_pose = use_co2 or use_sound
+    # Pose real del robot (siempre en simulación): la leen los simuladores de gases/sonido/radar
+    # y el evaluador (error de localización). Ningún nodo del robot la usa.
+    sim_pose = True
 
     # worlds/seed<N>/ o, con world_params:=<nombre>, worlds/seed<N>_<nombre>/ (se genera si falta)
     world_dir = ensure_world(seed, worlds_dir, world_params)
@@ -96,7 +97,7 @@ def _launch_setup(context):
                              {'use_sim_time': True}]),
         ]
 
-    # Simuladores de la Capa 2 que necesitan la pose real (excepción del ground truth).
+    # Pose real y simuladores de la Capa 2 que la necesitan (excepción del ground truth).
     sim_sensors = []
     sim_sensors_share = get_package_share_directory('usar_sim_sensors')
     if sim_pose:

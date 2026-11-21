@@ -1,6 +1,7 @@
 # Pose real del robot (solo simulación, sim_pose:=true). La leen ÚNICAMENTE los simuladores de
 # sensores de usar_sim_sensors para calcular qué mediría cada sensor (excepción del ground truth,
-# ver CLAUDE.md). Ningún nodo del robot se suscribe a /sim/*.
+# ver CLAUDE.md) y el evaluador de usar_metrics (error de localización; no publica nada). Ningún
+# nodo del robot se suscribe a /sim/*.
 - ros_topic_name: /sim/ground_truth/odom
   gz_topic_name: /sim/ground_truth/odom
   ros_type_name: nav_msgs/msg/Odometry

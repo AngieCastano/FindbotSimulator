@@ -54,6 +54,47 @@ def world_to_map(points: np.ndarray, spawn: Pose2D) -> np.ndarray:
     return pts @ rot.T
 
 
+def pose_to_world(pose: Pose2D, spawn: Pose2D) -> Pose2D:
+    """Lleva una pose del frame `map` (u `odom`, que nace en el spawn) al frame del mundo."""
+    x, y = map_to_world(np.array([[pose.x, pose.y]]), spawn)[0]
+    return Pose2D(float(x), float(y), math.atan2(math.sin(pose.yaw + spawn.yaw),
+                                                 math.cos(pose.yaw + spawn.yaw)))
+
+
+def pose_error(estimate: Pose2D, truth: Pose2D) -> Tuple[float, float]:
+    """Error de posición (m) y de orientación (rad, en [0, π]) entre dos poses del mundo."""
+    dyaw = math.atan2(math.sin(estimate.yaw - truth.yaw), math.cos(estimate.yaw - truth.yaw))
+    return math.hypot(estimate.x - truth.x, estimate.y - truth.y), abs(dyaw)
+
+
+def nearest_in_time(buffer: Sequence[Tuple[float, Pose2D]], t: float,
+                    tolerance: float) -> Optional[Pose2D]:
+    """Pose del búfer (tiempo, pose) más cercana a t, si está a menos de tolerance s."""
+    if not buffer:
+        return None
+    best_t, best = min(buffer, key=lambda e: abs(e[0] - t))
+    return best if abs(best_t - t) <= tolerance else None
+
+
+def localization_summary(rows: Sequence[Dict]) -> Optional[Dict]:
+    """
+    Resumen del error de localización (SLAM y odometría de ruedas) frente a la pose real.
+
+    rows: muestras con slam_error_m, slam_yaw_error_deg, odom_error_m, odom_yaw_error_deg.
+    """
+    if not rows:
+        return None
+    out = {'n_samples': len(rows)}
+    for key in ('slam_error_m', 'slam_yaw_error_deg', 'odom_error_m', 'odom_yaw_error_deg'):
+        values = np.array([r[key] for r in rows if r.get(key) is not None], dtype=float)
+        if len(values) == 0:
+            continue
+        out[f'{key}_mean'] = round(float(values.mean()), 4)
+        out[f'{key}_max'] = round(float(values.max()), 4)
+        out[f'{key}_final'] = round(float(values[-1]), 4)
+    return out
+
+
 def explorable_centers(geometry: GridGeometry, mask: np.ndarray) -> np.ndarray:
     """Centros (N×2, frame del mundo) de las celdas del área explorable."""
     rows, cols = np.nonzero(mask)

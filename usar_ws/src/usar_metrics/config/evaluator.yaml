@@ -30,3 +30,12 @@ evaluator:
     modalities: ["color_shape", "human_shape", "thermal", "co2", "sound"]
     status_topic: /exploration/status
     image_dpi: 150
+    # Error de localización del robot: pose de SLAM (TF map → robot_frame) y de /odom frente a
+    # la pose real, cada pose_error_period s (tiempo simulado). La pose real solo existe en
+    # simulación (OdometryPublisher de Gazebo, sim.launch.py la activa siempre); el evaluador,
+    # que no publica nada, es junto a usar_sim_sensors el único que la lee.
+    true_pose_topic: /sim/ground_truth/odom
+    map_frame: map
+    robot_frame: base_footprint
+    pose_error_period: 1.0
+    pose_sync_tolerance: 0.1      # s: desfase máximo entre la pose real y la estimada

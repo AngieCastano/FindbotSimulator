@@ -162,8 +162,9 @@ Mismas semillas (1, 2, 3 `dusty`, 15 min). Resultados de "sonido guía" en
   sueltos en la mitad superior, obstáculos corridos respecto al escenario real) y la cobertura
   cayó a 82.7 %. Es la segunda misión con sonido con deriva de SLAM (la otra es la misión 2 de
   la sección 6); en las misiones sin sonido de esta fase y en las de la Fase 10 no ocurrió.
-  Con tan pocas misiones no se puede afirmar si las paradas influyen; queda como punto a
-  investigar.
+  Con tan pocas misiones no se puede afirmar si las paradas influyen. Se investigó después en
+  `deriva_slam.md`: en 6 misiones nuevas no se repitió y las paradas no empeoran la
+  localización.
 - En las semillas 2 y 3 la forma encontró las 5 víctimas igual que sin sonido: en este
   escenario (20 × 20 m, 15 min, cobertura ≈ 99 %) la cámara llega a todas, así que el sonido no
   tiene víctimas que añadir. Su utilidad esperable es en escenarios donde la cobertura no

@@ -222,3 +222,27 @@ def test_consolidate(tmp_path):
 def test_consolidate_without_inputs(tmp_path):
     assert consolidate.main([str(tmp_path)]) == 1
     assert not os.path.exists(tmp_path / 'summary.csv')
+
+
+def test_pose_error_and_summary():
+    import math
+    from usar_metrics.metrics_core import (localization_summary, nearest_in_time, Pose2D,
+                                           pose_error, pose_to_world)
+    spawn = Pose2D(2.0, 1.0, math.pi / 2)
+    # (1, 0) en map, con el spawn girado 90°, es (2, 2) en el mundo, mirando hacia +x + 90°.
+    world = pose_to_world(Pose2D(1.0, 0.0, 0.0), spawn)
+    assert world.x == pytest.approx(2.0) and world.y == pytest.approx(2.0)
+    assert world.yaw == pytest.approx(math.pi / 2)
+    err, yaw = pose_error(Pose2D(0.0, 0.0, math.pi - 0.1), Pose2D(3.0, 4.0, -math.pi + 0.1))
+    assert err == pytest.approx(5.0) and yaw == pytest.approx(0.2)
+    buf = [(1.0, Pose2D(1, 0, 0)), (2.0, Pose2D(2, 0, 0))]
+    assert nearest_in_time(buf, 1.95, 0.1).x == 2
+    assert nearest_in_time(buf, 1.5, 0.1) is None
+    rows = [{'slam_error_m': 0.1, 'slam_yaw_error_deg': 1.0, 'odom_error_m': 0.2,
+             'odom_yaw_error_deg': 2.0},
+            {'slam_error_m': 0.3, 'slam_yaw_error_deg': 3.0, 'odom_error_m': None,
+             'odom_yaw_error_deg': None}]
+    s = localization_summary(rows)
+    assert s['n_samples'] == 2 and s['slam_error_m_mean'] == pytest.approx(0.2)
+    assert s['slam_error_m_max'] == pytest.approx(0.3) and s['odom_error_m_final'] == 0.2
+    assert localization_summary([]) is None
