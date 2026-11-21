@@ -26,7 +26,7 @@ from usar_worldgen.worlds import resolve_world_params
 import yaml
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'rviz_config',
-                  'use_thermal', 'use_co2']
+                  'use_thermal', 'use_co2', 'use_sound']
 
 
 def generate_launch_description():
@@ -42,6 +42,8 @@ def generate_launch_description():
         params = [LaunchConfiguration('explorer_params').perform(context)]
         if LaunchConfiguration('quick').perform(context).lower() == 'true':
             params.append(os.path.join(exploration_config, 'explorer_quick.yaml'))
+        if LaunchConfiguration('use_sound').perform(context).lower() == 'true':
+            params.append({'listen_enabled': True})     # paradas de escucha
         return [Node(package='usar_exploration', executable='frontier_explorer',
                      name='frontier_explorer', output='screen',
                      parameters=[*params, {'use_sim_time': True}])]
@@ -61,7 +63,8 @@ def generate_launch_description():
         # Sensores de la fase 2: su detector se añade a la lista y sus parámetros encima.
         detection_config = os.path.join(get_package_share_directory('usar_detection'), 'config')
         for arg, name, overlay in (('use_thermal', 'thermal', 'detector_thermal.yaml'),
-                                   ('use_co2', 'co2', 'detector_co2.yaml')):
+                                   ('use_co2', 'co2', 'detector_co2.yaml'),
+                                   ('use_sound', 'sound', 'detector_sound.yaml')):
             if LaunchConfiguration(arg).perform(context).lower() == 'true':
                 detectors.append(name)
                 params.append(os.path.join(detection_config, overlay))
@@ -87,6 +90,9 @@ def generate_launch_description():
                               description='Cámara térmica MLX90640 y detector de calor (fase 2)'),
         DeclareLaunchArgument('use_co2', default_value='false',
                               description='Sensor de CO₂ TGS4161 y detector de CO₂ (fase 2)'),
+        DeclareLaunchArgument('use_sound', default_value='false',
+                              description='Micrófonos ReSpeaker, detector de sonido y paradas '
+                                          'de escucha (fase 2)'),
         DeclareLaunchArgument('rviz_config', default_value=os.path.join(
             bringup_share, 'rviz', 'exploration.rviz')),
         DeclareLaunchArgument('explorer_params', default_value=os.path.join(

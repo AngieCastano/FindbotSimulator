@@ -23,13 +23,13 @@ firmware deben tener exactamente estos elementos, con los mismos nombres de tóp
 | 6 | Monitor de batería | Divisor resistivo | ESP32 (ADC) | — (no aplica) | `/battery_state` | Seguridad: avisar batería baja | MVP |
 | 7 | Cámara térmica | MLX90640 (32×24 px) | ESP32 por I2C | sensor `thermal` (víctimas a 34 °C de superficie) + `usar_sim_sensors/thermal_camera_sim` (ruido) | `/thermal/image` (32FC1, °C) | 2.º signo de vida: calor corporal | Fase 2 |
 | 8 | Sensor de CO₂ | Figaro TGS4161 (350–10 000 ppm) | ESP32 (ADC, seguidor MCP6004; calefactor por MOSFET) | `usar_sim_sensors/co2_sim` (pluma de CO₂ de cada víctima + respuesta lenta del sensor) | `/co2/concentration` (`usar_msgs/GasConcentration`) | 3.er signo de vida: respiración (CO₂ exhalado) | Fase 2 |
-| 9 | Arreglo de micrófonos | ReSpeaker USB Mic Array v2.0 (4 micrófonos) | Computador por USB | `usar_sim_sensors` (se define en la Fase 11) | se define en la Fase 11 | 4.º signo de vida: voz, golpes | Fase 2 |
+| 9 | Arreglo de micrófonos | ReSpeaker USB Mic Array v2.0 (4 micrófonos) | Computador por USB | `usar_sim_sensors/sound_sim` (ráfagas de cada víctima, atenuación por escombros, ruido de motores, ecos) | `/sound/doa` (`usar_msgs/SoundDirection`: dirección de llegada, nivel, voz) | 4.º signo de vida: voz, golpes | Fase 2 |
 | 10 | Radar Doppler | HB100 (10,525 GHz) | ESP32 (ADC, 2 etapas + pasabanda) | `usar_sim_sensors` (se define en la Fase 12) | se define en la Fase 12 | 5.º signo de vida: movimiento respiratorio (con el robot quieto) | Fase 2 |
 
 Reglas:
 - **Estado "MVP"** = obligatorio en simulación, circuito y firmware. **"Fase 2"** = el circuito
   deja el conector listo y el xacro lo incluye desactivado por parámetro (`use_thermal:=false`,
-  `use_co2:=false`, ...).
+  `use_co2:=false`, `use_sound:=false`, ...).
 - Gazebo no modela gases, sonido ni radar: en simulación esos sensores los generan nodos de
   `usar_sim_sensors` (Capa 2), con la excepción a la regla del ground truth descrita abajo.
 - Las alturas y posiciones de los sensores en el xacro deben ser las del robot físico
@@ -71,6 +71,9 @@ Reglas:
    - **Detector de víctimas** con interfaz común por modalidad:
      - *Forma humana (MVP)*: segmentación de color en RGB + profundidad → punto 3D en `map`.
      - *Calor (fase 2)*: umbral de temperatura en `/thermal/image` → dirección de la víctima.
+     - *Sonido (fase 2)*: detector **guía** (`cue_only`): solo no confirma víctimas; sus
+       estimaciones van a `/victims/candidates` y el explorador va a mirarlas para que la
+       cámara confirme.
      Confirmación tras N observaciones, fusión de detecciones a menos de D m; publica
      `/victims/markers` y `/victims/detections` (incluye qué modalidad detectó).
 5. **Evaluación:** `usar_metrics` (el ÚNICO que lee el ground truth) calcula cobertura

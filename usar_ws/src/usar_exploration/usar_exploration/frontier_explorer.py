@@ -5,6 +5,8 @@ Entradas (solo datos propios del robot):
   /map                     mapa de slam_toolbox
   /global_costmap/costmap  costmap global de Nav2 (holgura de las metas)
   TF map → base_footprint  pose estimada por SLAM
+  /victims/candidates      candidatos a víctima de los detectores guía (p. ej. sonido): antes de
+                           elegir otra frontera, el robot va a mirar cada uno (una vez)
 Acciones usadas: compute_path_to_pose (C(g)) y navigate_to_pose (ejecutar la meta).
 Salidas: /exploration/status (std_msgs/String) y /exploration/frontiers (MarkerArray).
 
@@ -29,6 +31,7 @@ from rclpy.time import Time
 from std_msgs.msg import ColorRGBA, String
 import tf2_ros
 from usar_exploration import frontier_core as fc
+from usar_msgs.msg import VictimDetectionArray
 from visualization_msgs.msg import Marker, MarkerArray
 
 PARAMS = {
@@ -85,11 +88,22 @@ PARAMS = {
     'trap_avoid_radius': 1.2,
     'crumb_spacing': 0.1,
     'control_period': 0.1,
+    'listen_enabled': False,
+    'listen_period': 45.0,
+    'listen_duration': 5.0,
     'max_rejections': 5,
+    'candidate_topic': '/victims/candidates',
+    'candidate_visits_enabled': True,
+    'candidate_view_min': 0.8,
+    'candidate_view_max': 2.0,
+    'candidate_done_radius': 1.0,
+    'candidate_look_time': 4.0,
+    'candidate_max_visits': 10,
 }
 
-WAITING, IDLE, PLANNING, NAVIGATING, ESCAPING, BACKTRACKING, FINISHED = (
-    'waiting', 'idle', 'planning', 'navigating', 'escaping', 'backtracking', 'finished')
+(WAITING, IDLE, PLANNING, NAVIGATING, ESCAPING, BACKTRACKING, LISTENING, LOOKING,
+ FINISHED) = ('waiting', 'idle', 'planning', 'navigating', 'escaping', 'backtracking',
+              'listening', 'looking', 'finished')
 
 
 class FrontierExplorer(Node):
@@ -129,6 +143,19 @@ class FrontierExplorer(Node):
         self.trap_zones: List[tuple] = []
         self.backtrack = None
         self.backtracks = 0
+        # Paradas de escucha (sonido, radar): el robot se detiene listen_duration s cada
+        # listen_period s de navegación hacia metas.
+        self.listen_last: Optional[Time] = None
+        self.listen_start: Optional[Time] = None
+        self.listens = 0
+        # Candidatos a víctima (detectores guía): se visitan una vez, mirando hacia ellos.
+        self.victim_candidates: List[tuple] = []
+        self.visited_candidates: List[tuple] = []
+        self.candidate_visits = 0
+        self.look_start: Optional[Time] = None
+        if self.p['candidate_visits_enabled']:
+            self.create_subscription(VictimDetectionArray, self.p['candidate_topic'],
+                                     self._on_candidates, 10)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -190,12 +217,16 @@ class FrontierExplorer(Node):
                            i.width, i.height)
         return np.asarray(msg.data, dtype=np.int16).reshape(i.height, i.width), info
 
-    def _pose(self, x, y) -> PoseStamped:
+    def _pose(self, x, y, yaw=None) -> PoseStamped:
         pose = PoseStamped()
         pose.header.frame_id = self.p['global_frame']
         pose.header.stamp = self._now().to_msg()
         pose.pose.position.x, pose.pose.position.y = float(x), float(y)
-        pose.pose.orientation.w = 1.0
+        if yaw is None:
+            pose.pose.orientation.w = 1.0
+        else:
+            pose.pose.orientation.z = math.sin(yaw / 2.0)
+            pose.pose.orientation.w = math.cos(yaw / 2.0)
         return pose
 
     # ------------------------------------------------------------------ ciclo principal
@@ -206,7 +237,7 @@ class FrontierExplorer(Node):
         if self.state == WAITING:
             if (self.map_msg is not None and robot is not None
                     and self.nav_client.server_is_ready() and self.plan_client.server_is_ready()):
-                self.start_time = self._now()
+                self.start_time = self.listen_last = self._now()
                 self.state = IDLE
                 self.get_logger().info('Exploración iniciada')
             return
@@ -220,14 +251,86 @@ class FrontierExplorer(Node):
             return
         if self.state == IDLE:
             if self.retry_after is None or self._now() >= self.retry_after:
-                if not self._start_escape_if_trapped():
+                if not self._start_escape_if_trapped() and not self._visit_candidate(robot):
                     self._select_candidates(robot)
         elif self.state == ESCAPING:
             self._escape_step()
         elif self.state == PLANNING:
             self._check_plan_timeout()
         elif self.state == NAVIGATING:
-            self._monitor_goal(robot)
+            if self._listen_due():
+                self._start_listening()
+            else:
+                self._monitor_goal(robot)
+        elif self.state == LISTENING:
+            if self._elapsed(self.listen_start) >= self.p['listen_duration']:
+                self.listen_last = self._now()
+                self._send_goal(self.goal)
+        elif self.state == LOOKING:
+            if self._elapsed(self.look_start) >= self.p['candidate_look_time']:
+                self.state = IDLE
+
+    # ------------------------------------------------------------------ candidatos a víctima
+    def _on_candidates(self, msg: VictimDetectionArray):
+        self.victim_candidates = [(v.position.x, v.position.y) for v in msg.victims]
+
+    def _goal_masks(self):
+        """Máscaras del /map (libre, ocupado, desconocido), holgura y costo aceptable."""
+        grid, info = self._grid(self.map_msg)
+        free, occupied, unknown = fc.classify(
+            grid, self.p['free_threshold'], self.p['occupied_threshold'])
+        clearance = fc.clearance_map(occupied, info.resolution)
+        cost_ok = None
+        if self.costmap_msg is not None:
+            cost, cost_info = self._grid(self.costmap_msg)
+            cost_ok = fc.align_to(info, cost, cost_info, fill=-1) <= self.p['max_goal_cost']
+        return info, free, occupied, unknown, clearance, cost_ok
+
+    def _near(self, point, places, radius) -> bool:
+        return any(math.hypot(point[0] - x, point[1] - y) < radius for x, y in places)
+
+    def _pending_candidates(self):
+        """Candidatos aún sin visitar y fuera de las zonas de encierro."""
+        r = self.p['candidate_done_radius']
+        return [c for c in self.victim_candidates
+                if not self._near(c, self.visited_candidates, r)
+                and not any(math.hypot(c[0] - zx, c[1] - zy) < zr
+                            for zx, zy, zr in self.trap_zones)]
+
+    def _visit_candidate(self, robot) -> bool:
+        """
+        Envía al robot a mirar el candidato pendiente más cercano; False si no hay ninguno.
+
+        Un detector guía (sonido) sabe más o menos dónde hay alguien pero no lo confirma: el
+        robot se acerca a un punto libre a candidate_view_min–max m con línea de vista y se
+        queda mirándolo candidate_look_time s para que la cámara (forma, color) lo confirme.
+        Cada candidato se visita una sola vez, se confirme o no.
+        """
+        if not self.p['candidate_visits_enabled'] or \
+                self.candidate_visits >= self.p['candidate_max_visits']:
+            return False
+        pending = self._pending_candidates()
+        if not pending:
+            return False
+        target = min(pending, key=lambda c: math.hypot(c[0] - robot[0], c[1] - robot[1]))
+        info, free, occupied, _, clearance, cost_ok = self._goal_masks()
+        view = fc.find_view_goal(target, robot, free, occupied, clearance, info,
+                                 self.p['candidate_view_min'], self.p['candidate_view_max'],
+                                 self.p['min_goal_clearance'], cost_ok)
+        self.visited_candidates.append(target)
+        if view is None:
+            self.get_logger().info(f'Candidato en ({target[0]:.2f}, {target[1]:.2f}): sin punto '
+                                   'libre desde el que mirarlo; se descarta')
+            return False
+        self.candidate_visits += 1
+        goal = fc.Frontier(cells=np.zeros((0, 2), dtype=int), centroid=target, goal=view[:2])
+        goal.extra.update({'candidate': target, 'yaw': view[2]})
+        self.goals_sent += 1
+        self.get_logger().info(
+            f'Meta {self.goals_sent}: mirar el candidato a víctima {self.candidate_visits} en '
+            f'({target[0]:.2f}, {target[1]:.2f}) desde ({view[0]:.2f}, {view[1]:.2f})')
+        self._send_goal(goal)
+        return True
 
     # ------------------------------------------------------------------ selección de metas
     def _select_candidates(self, robot):
@@ -260,8 +363,8 @@ class FrontierExplorer(Node):
                       'poca_info' if f.info_gain < self.p['min_info_gain'] else
                       'lista_negra' if fc.is_blacklisted(f.goal, self.blacklist,
                                                          self.p['blacklist_radius']) else
-                      'trampa' if fc.is_blacklisted(f.goal, self.trap_zones,
-                                                    self.p['trap_avoid_radius']) else None)
+                      'trampa' if any(math.hypot(f.goal[0] - zx, f.goal[1] - zy) < zr
+                                      for zx, zy, zr in self.trap_zones) else None)
             if reason:
                 rejected[reason] += 1
                 continue
@@ -338,23 +441,52 @@ class FrontierExplorer(Node):
         if best is None:
             self.state = IDLE
             return
-        self.goal = best
-        self.goal_seq += 1
-        seq = self.goal_seq
         self.goals_sent += 1
         self.get_logger().info(
             f'Meta {self.goals_sent}: ({best.goal[0]:.2f}, {best.goal[1]:.2f}) '
             f'J={best.score:.3f} C={best.path_cost:.2f} m I={best.info_gain:.0f} celdas '
             f'({len(self.candidates)} candidatos, {len(self.frontiers)} fronteras)')
+        self._send_goal(best)
+        self._publish_markers()
+
+    def _send_goal(self, best):
+        """Envía (o reenvía tras una parada de escucha) la meta a NavigateToPose."""
+        self.goal = best
+        self.goal_seq += 1
+        seq = self.goal_seq
         goal = NavigateToPose.Goal()
-        goal.pose = self._pose(*best.goal)
+        goal.pose = self._pose(*best.goal, yaw=best.extra.get('yaw'))
         self.state = NAVIGATING
         self.goal_start = self.last_replan = self.progress_time = self._now()
         self.progress_pose = self._robot_xy()
         self.goal_handle = None
         self.nav_client.send_goal_async(goal).add_done_callback(
             lambda fut: self._on_nav_accepted(fut, seq))
-        self._publish_markers()
+
+    # ------------------------------------------------------------------ paradas de escucha
+    def _listen_due(self) -> bool:
+        """Cierto si toca detenerse a escuchar (listen_period s navegando desde la última)."""
+        return bool(self.p['listen_enabled']) and self.p['listen_duration'] > 0 and \
+            self._elapsed(self.listen_last) >= self.p['listen_period']
+
+    def _start_listening(self):
+        """
+        Detiene el robot listen_duration s sin abandonar la meta.
+
+        Con los motores en marcha el ruido tapa los sonidos débiles (y el radar Doppler solo ve
+        la respiración con el robot quieto). Se cancela la meta en Nav2 (el controlador frena) y
+        se reenvía la misma al terminar la parada.
+        """
+        if self.goal_handle is not None:
+            self.goal_handle.cancel_goal_async()
+        self.goal_handle = None
+        self.goal_seq += 1            # invalida los callbacks de la meta cancelada
+        self.listens += 1
+        self.listen_start = self._now()
+        self.escape_pub.publish(Twist())
+        self.state = LISTENING
+        self.get_logger().info(f'Parada de escucha {self.listens} '
+                               f'({self.p["listen_duration"]:.0f} s)')
 
     # ------------------------------------------------------------------ ejecución de la meta
     def _on_nav_accepted(self, future, seq):
@@ -415,6 +547,13 @@ class FrontierExplorer(Node):
         if self._elapsed(self.goal_start) > self.p['goal_timeout']:
             self._cancel_goal(success=False, reason='tiempo por meta agotado')
             return
+        target = self.goal.extra.get('candidate')
+        if target is not None:
+            # Candidato resuelto mientras el robot iba (la cámara ya lo confirmó o el detector
+            # guía lo descartó): no hace falta llegar.
+            if not self._near(target, self.victim_candidates, self.p['candidate_done_radius']):
+                self._cancel_goal(success=True, reason='candidato resuelto')
+            return
         if self._elapsed(self.last_replan) >= self.p['replan_period']:
             self.last_replan = self._now()
             grid, info = self._grid(self.map_msg)
@@ -445,9 +584,15 @@ class FrontierExplorer(Node):
         self.get_logger().info(
             f'Meta {"completada" if success else "fallida"} ({reason}); '
             f'lista negra: {len(self.blacklist)}')
+        looking = success and self.goal.extra.get('candidate') is not None \
+            and reason != 'candidato resuelto'
         self.goal, self.goal_handle = None, None
         self.goal_seq += 1          # invalida callbacks pendientes de la meta anterior
         self.state = IDLE
+        if looking:
+            # Llegó frente al candidato: se queda quieto mirándolo.
+            self.look_start = self._now()
+            self.state = LOOKING
 
     # ------------------------------------------------------------------ escape
     def _update_stuck(self, success, reason):
@@ -582,10 +727,20 @@ class FrontierExplorer(Node):
             self._elapsed(self.trap_since) > self.p['trap_timeout']
 
     def _start_backtrack(self, robot):
-        """Cancela lo que esté haciendo y vuelve por su propia huella fuera del hueco."""
-        path = self.crumbs.path_back(robot[0], robot[1], self.p['backtrack_distance'],
-                                     self.p['trap_radius'])
-        self.trap_zones.append(tuple(robot))
+        """
+        Cancela lo que esté haciendo y vuelve por su propia huella fuera del hueco.
+
+        Si vuelve a quedar encerrado cerca de un encierro anterior, el retroceso y la zona
+        evitada crecen (×2, ×3, ...): una zona evitada pequeña no impide que la ruta hacia otra
+        meta lo vuelva a llevar por el mismo hueco.
+        """
+        repeats = sum(1 for zx, zy, zr in self.trap_zones
+                      if math.hypot(robot[0] - zx, robot[1] - zy) < zr)
+        scale = 1 + repeats
+        path = self.crumbs.path_back(robot[0], robot[1],
+                                     scale * self.p['backtrack_distance'],
+                                     scale * self.p['trap_radius'])
+        self.trap_zones.append((robot[0], robot[1], scale * self.p['trap_avoid_radius']))
         self.trap_anchor, self.trap_since = robot, self._now()
         if self.goal_handle is not None:
             self.goal_handle.cancel_goal_async()
@@ -604,7 +759,9 @@ class FrontierExplorer(Node):
             f'Robot encerrado en ({robot[0]:.2f}, {robot[1]:.2f}) '
             f'{self.p["trap_timeout"]:.0f} s en un radio de '
             f'{self.p["trap_radius"]} m: retroceso {self.backtracks} por su huella '
-            f'({length:.1f} m); se evitan metas a menos de {self.p["trap_avoid_radius"]} m')
+            f'({length:.1f} m); se evitan metas a menos de '
+            f'{scale * self.p["trap_avoid_radius"]:.1f} m'
+            + (f' (encierro repetido ×{scale})' if repeats else ''))
         self.backtrack = {'path': path, 'since': self._now(), 'last_pose': robot,
                           'last_motion': self._now()}
         self.state = BACKTRACKING
@@ -647,7 +804,8 @@ class FrontierExplorer(Node):
         self.get_logger().info(
             f'Exploración terminada ({reason}) en {self._elapsed(self.start_time):.0f} s: '
             f'{self.goals_sent} metas enviadas, {self.goals_failed} fallidas, '
-            f'{self.escapes} escapes, {self.backtracks} retrocesos')
+            f'{self.escapes} escapes, {self.backtracks} retrocesos, '
+            f'{self.listens} paradas de escucha, {self.candidate_visits} candidatos visitados')
         self._publish_status()
         self._publish_markers()
 

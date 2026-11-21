@@ -1,0 +1,31 @@
+# Sonidos de las víctimas y dirección de llegada del ReSpeaker (Capa 2, solo simulación).
+# ground_truth_file lo fija sim.launch.py (excepción del ground truth: ver CLAUDE.md).
+sound_sim:
+  ros__parameters:
+    pose_topic: /sim/ground_truth/odom   # pose y velocidad reales (solo para este simulador)
+    output_topic: /sound/doa             # usar_msgs/SoundDirection: lo mismo que el ReSpeaker
+    base_frame: base_footprint
+    sensor_frame: mic_array_link
+    rate: 10.0                  # Hz
+    seed: 0
+    # Fuentes: ráfagas (pedir ayuda, golpear) de cada víctima vocal
+    vocal_fraction: 1.0         # fracción de víctimas que hacen ruido (las demás, inconscientes)
+    source_db: 65.0             # dB SPL a 1 m (voz alta / golpes en escombros)
+    burst_duration: 2.0         # s
+    burst_interval: [10.0, 20.0]   # s entre inicios de ráfaga (sorteado)
+    # Propagación
+    obstacle_attenuation_db: 8.0   # dB por escombro en la línea víctima–micrófonos
+    min_distance: 0.3           # m (evita el nivel infinito junto a la fuente)
+    # Ruido de fondo
+    ambient_db: 35.0            # dB: ruinas en silencio
+    motor_noise_db: 55.0        # dB: motores del robot en marcha (tapan los sonidos débiles)
+    moving_speed: 0.02          # m/s: por encima, el robot se considera en marcha
+    moving_turn_rate: 0.05      # rad/s
+    # Estimación de la dirección (procesador del ReSpeaker)
+    vad_snr_db: 6.0             # SNR mínima para detectar voz/golpes
+    doa_sigma_deg_at_10db: 10.0 # error típico de la dirección con SNR = 10 dB (baja con más SNR)
+    doa_sigma_min_deg: 3.0
+    doa_sigma_max_deg: 40.0
+    echo_prob: 0.05             # probabilidad de que la dirección sea un eco...
+    echo_prob_per_obstacle: 0.1 # ...más esto por cada escombro en medio
+    echo_prob_max: 0.6

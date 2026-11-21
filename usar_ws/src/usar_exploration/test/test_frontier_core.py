@@ -274,3 +274,40 @@ def test_follow_path_drives_back_along_crumbs():
         if math.hypot(x - path[-1][0], y - path[-1][1]) < 0.15:
             break
     assert math.hypot(x - 0.6, y - 0.05 * math.sin(24 / 5)) < 0.2
+
+
+def _room(n=60, res=0.1):
+    """Sala libre de n×n celdas con borde ocupado."""
+    grid = np.zeros((n, n), dtype=np.int16)
+    grid[0, :] = grid[-1, :] = grid[:, 0] = grid[:, -1] = 100
+    return grid, fc.GridInfo(res, 0.0, 0.0, n, n)
+
+
+def test_line_of_sight():
+    grid, info = _room()
+    _, occupied, _ = fc.classify(grid, 20, 65)
+    assert fc.line_of_sight(occupied, info, (1.0, 1.0), (4.0, 1.0))
+    occupied[5:15, 25] = True                       # pared en x = 2.5 entre y = 0.5 y 1.5
+    assert not fc.line_of_sight(occupied, info, (1.0, 1.0), (4.0, 1.0))
+    # El final del segmento no se comprueba: un objetivo pegado a un escombro sigue visible.
+    assert fc.line_of_sight(occupied, info, (1.0, 1.0), (2.6, 1.0), ignore_end=0.3)
+
+
+def test_find_view_goal_ring_sight_and_heading():
+    grid, info = _room()
+    grid[10:50, 30] = 100                           # pared en x = 3.0 entre y = 1.0 y 5.0
+    free, occupied, _ = fc.classify(grid, 20, 65)
+    clearance = fc.clearance_map(occupied, info.resolution)
+    target, robot = (4.5, 3.0), (1.0, 3.0)          # objetivo detrás de la pared
+    view = fc.find_view_goal(target, robot, free, occupied, clearance, info, 0.8, 2.0, 0.3)
+    assert view is not None
+    x, y, yaw = view
+    d = math.hypot(x - target[0], y - target[1])
+    assert 0.8 <= d <= 2.0
+    assert fc.line_of_sight(occupied, info, (x, y), target, 0.3)
+    assert x > 3.0 or y < 1.0 or y > 5.0           # no se queda detrás de la pared
+    assert yaw == pytest.approx(math.atan2(target[1] - y, target[0] - x))
+    # Sin celdas libres alrededor: None.
+    blocked = np.zeros_like(free)
+    assert fc.find_view_goal(target, robot, blocked, occupied, clearance, info,
+                             0.8, 2.0, 0.3) is None

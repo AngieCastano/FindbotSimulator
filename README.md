@@ -232,6 +232,7 @@ visión de 69°.
 | `/exploration/frontiers` | `visualization_msgs/MarkerArray` | explorador → RViz |
 | `/victims/markers` | `visualization_msgs/MarkerArray` | detector → RViz |
 | `/victims/detections` | `usar_msgs/VictimDetectionArray` (incluye las modalidades) | detector → evaluador |
+| `/victims/candidates` | `usar_msgs/VictimDetectionArray` (candidatos del sonido, sin confirmar) | detector → explorador |
 | `/victims/debug_image` | `sensor_msgs/Image` | detector → RViz |
 
 Ningún parámetro está fijo en el código: todos están en archivos YAML.

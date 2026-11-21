@@ -29,13 +29,13 @@ def known_cells_mask(points: np.ndarray, data: np.ndarray, origin_x: float, orig
 def ray_extents(data: np.ndarray, origin_x: float, origin_y: float, resolution: float,
                 width: int, height: int, start: np.ndarray, directions: np.ndarray,
                 max_ranges: np.ndarray, min_range: float = 0.0, beyond: float = 0.0,
-                occupied_threshold: int = 65) -> np.ndarray:
+                occupied_threshold: int = 65, stop_unknown: bool = True) -> np.ndarray:
     """
     Hasta dónde puede estar, a lo largo de cada rayo, lo que ve un sensor sin distancia.
 
     El rayo recorre el /map del robot desde min_range y termina en lo que llegue antes:
       - la primera celda ocupada, más `beyond` m (el objeto visto tiene cierto fondo),
-      - la primera celda desconocida o el borde del mapa (detrás no se sabe qué hay),
+      - la primera celda desconocida (si stop_unknown) o el borde del mapa,
       - su distancia máxima (max_ranges).
     Devuelve la longitud (m) de cada rayo; ≤ min_range si no recorre nada.
 
@@ -64,5 +64,7 @@ def ray_extents(data: np.ndarray, origin_x: float, origin_y: float, resolution: 
     occ = values >= occupied_threshold
     unknown = values < 0
     t_occ = np.where(occ.any(axis=1), ts[occ.argmax(axis=1)] + beyond, big)
+    if not stop_unknown:          # el sonido atraviesa los escombros (su interior es desconocido)
+        unknown = ~inside
     t_unk = np.where(unknown.any(axis=1), ts[unknown.argmax(axis=1)], big)
     return np.minimum(np.minimum(t_occ, t_unk), max_ranges)

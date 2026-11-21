@@ -53,6 +53,20 @@ class Co2Observation:
 
 
 @dataclass
+class SoundObservation:
+    """Dirección de llegada del sonido (arreglo de micrófonos), con la pose del arreglo."""
+
+    azimuth: float                       # rad en el frame del arreglo
+    level_db: float
+    voice_activity: bool
+    confidence: float
+    position: Tuple[float, float]        # (x, y) del arreglo en el frame global
+    yaw: float                           # orientación del arreglo en el frame global (rad)
+    stamp_sec: float = 0.0
+    frame_id: str = ''
+
+
+@dataclass
 class Detection:
     """Una detección de un signo de vida."""
 
@@ -79,12 +93,16 @@ class SignOfLifeDetector(ABC):
     name = 'base'
     #: Error de localización típico (m): pesa la posición al unir detectores distintos.
     position_sigma = 0.3
-    #: Sensor que consume: 'rgbd' (Observation), 'thermal' (ThermalObservation) o 'co2'
-    #: (Co2Observation; sus detecciones ya vienen en el frame global).
+    #: Sensor que consume: 'rgbd' (Observation), 'thermal' (ThermalObservation), 'co2'
+    #: (Co2Observation) o 'sound' (SoundObservation). Las detecciones de 'co2' y 'sound' ya
+    #: vienen en el frame global (puntos y rayos, respectivamente).
     sensor = 'rgbd'
 
     def __init__(self, params: Dict):
         self.params = params
+        #: Detector guía (`<nombre>.cue_only: true`): sus confirmaciones solas no son víctimas,
+        #: sino candidatos que el explorador va a mirar (ver VictimRegistry).
+        self.cue_only = bool(params.get('cue_only', False))
 
     @abstractmethod
     def detect(self, observation: Observation) -> List[Detection]:
@@ -96,6 +114,16 @@ class SignOfLifeDetector(ABC):
 
     def tracker_params(self) -> Dict[str, float]:
         """Parámetros del mapa de evidencia propios de este detector (p. ej. celdas mayores)."""
+        return {}
+
+    def bearing_params(self) -> Dict[str, float]:
+        """
+        Triangulación de los rayos de un sensor sin distancia (ver bearing_evidence).
+
+        Claves: cell, bins, min_bearings, min_range, beyond (m tras el primer obstáculo del
+        /map; muy grande = el rayo atraviesa escombros), stop_unknown (cortar en lo
+        desconocido).
+        """
         return {}
 
     def group_shape(self) -> Optional[Dict[str, float]]:

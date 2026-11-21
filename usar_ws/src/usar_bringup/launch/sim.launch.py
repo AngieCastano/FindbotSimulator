@@ -6,6 +6,7 @@ Uso:
     ros2 launch usar_bringup sim.launch.py seed:=7 gui:=false rviz:=false   # sin ventanas
     ros2 launch usar_bringup sim.launch.py use_thermal:=true   # con la cámara térmica (fase 2)
     ros2 launch usar_bringup sim.launch.py use_co2:=true       # con el sensor de CO₂ (fase 2)
+    ros2 launch usar_bringup sim.launch.py use_sound:=true     # con los micrófonos (fase 2)
 
 Si worlds/seed<N>/ no existe, se genera con usar_worldgen. El robot aparece en la pose de
 spawn.yaml (archivo público). Este launch no lee ground_truth.yaml: solo pasa su ruta a los
@@ -40,8 +41,9 @@ def _launch_setup(context):
     robot_params = LaunchConfiguration('robot_params').perform(context)
     use_thermal = LaunchConfiguration('use_thermal').perform(context).lower() == 'true'
     use_co2 = LaunchConfiguration('use_co2').perform(context).lower() == 'true'
+    use_sound = LaunchConfiguration('use_sound').perform(context).lower() == 'true'
     # Pose real del robot: solo la necesitan los simuladores de gases/sonido/radar.
-    sim_pose = use_co2
+    sim_pose = use_co2 or use_sound
 
     # worlds/seed<N>/ o, con world_params:=<nombre>, worlds/seed<N>_<nombre>/ (se genera si falta)
     world_dir = ensure_world(seed, worlds_dir, world_params)
@@ -54,6 +56,7 @@ def _launch_setup(context):
         mappings={'robot_params': robot_params,
                   'use_thermal': 'true' if use_thermal else 'false',
                   'use_co2': 'true' if use_co2 else 'false',
+                  'use_sound': 'true' if use_sound else 'false',
                   'sim_pose': 'true' if sim_pose else 'false'}).toxml()
 
     # -r: arrancar la simulación; sin GUI: solo servidor con renderizado headless (sensores).
@@ -109,6 +112,12 @@ def _launch_setup(context):
             parameters=[os.path.join(sim_sensors_share, 'config', 'co2_sim.yaml'),
                         {'use_sim_time': True,
                          'ground_truth_file': os.path.join(world_dir, 'ground_truth.yaml')}]))
+    if use_sound:
+        sim_sensors.append(Node(
+            package='usar_sim_sensors', executable='sound_sim', output='screen',
+            parameters=[os.path.join(sim_sensors_share, 'config', 'sound_sim.yaml'),
+                        {'use_sim_time': True, 'seed': seed,
+                         'ground_truth_file': os.path.join(world_dir, 'ground_truth.yaml')}]))
 
     rviz = Node(
         package='rviz2', executable='rviz2', output='log',
@@ -145,5 +154,7 @@ def generate_launch_description():
                               description='Cámara térmica MLX90640 (fase 2)'),
         DeclareLaunchArgument('use_co2', default_value='false',
                               description='Sensor de CO₂ TGS4161 (fase 2)'),
+        DeclareLaunchArgument('use_sound', default_value='false',
+                              description='Arreglo de micrófonos ReSpeaker (fase 2)'),
         OpaqueFunction(function=_launch_setup),
     ])

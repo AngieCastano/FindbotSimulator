@@ -85,3 +85,22 @@ frontier_explorer:
     trap_avoid_radius: 1.2      # m
     crumb_spacing: 0.1          # m entre puntos de la huella
     control_period: 0.1         # s: ciclo de la huella y del retroceso
+    # Paradas de escucha: cada listen_period s de navegación el robot se detiene listen_duration s
+    # (cancela la meta y la reenvía). Con los motores en marcha el ruido tapa los sonidos débiles
+    # (micrófonos) y el radar Doppler solo ve la respiración con el robot quieto.
+    # exploration.launch.py las activa con use_sound:=true.
+    listen_enabled: false
+    listen_period: 45.0         # s de navegación entre paradas
+    listen_duration: 5.0        # s
+    # Candidatos a víctima de los detectores guía (/victims/candidates; hoy el sonido): antes de
+    # elegir otra frontera, el robot va a un punto libre a candidate_view_min–max m del candidato,
+    # con línea de vista, y lo mira candidate_look_time s para que la cámara lo confirme. Cada
+    # candidato se visita una vez (radio candidate_done_radius); si se resuelve mientras el robot
+    # va, la meta se cancela. Sin detectores guía no llegan candidatos y no cambia nada.
+    candidate_visits_enabled: true
+    candidate_topic: /victims/candidates
+    candidate_view_min: 0.8     # m
+    candidate_view_max: 2.0     # m (la cámara ve bien la forma a menos de ≈ 3 m)
+    candidate_done_radius: 1.0  # m
+    candidate_look_time: 4.0    # s quieto mirando (≥ 5 observaciones a 5 Hz para confirmar)
+    candidate_max_visits: 10    # tope por misión (cada visita cuesta tiempo de exploración)

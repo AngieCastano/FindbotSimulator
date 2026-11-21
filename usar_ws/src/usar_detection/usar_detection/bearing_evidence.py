@@ -8,6 +8,12 @@ desde direcciones distintas al moverse el robot; un punto mal ubicado (p. ej. el
 detrás de una víctima cuando el rayo pasa por encima de sus piernas) cambia de sitio con cada
 punto de vista. Solo las celdas cruzadas desde al menos `min_bearings` sectores distintos son
 evidencia de víctima.
+
+Cerca del origen de un rayo una celda es tan ancha, vista desde allí, que rayos de sectores
+distintos que salen del mismo punto la cruzan todos: parecería "vista desde varias direcciones"
+sin haber cambiado de punto de vista (falsos positivos donde el robot pasa mucho tiempo quieto).
+Por eso solo se marcan las celdas a más de `2 · cell_size · n_bins / 2π` del origen, donde una
+celda abarca menos de medio sector.
 """
 
 from typing import Dict, Tuple
@@ -41,6 +47,7 @@ class BearingEvidence:
         if len(dirs) == 0:
             return np.zeros((0, 2))
         dirs = dirs / np.linalg.norm(dirs, axis=1, keepdims=True)
+        min_range = max(min_range, self.min_marking_distance())
         angles = np.arctan2(dirs[:, 1], dirs[:, 0]) % (2 * np.pi)
         bins = np.minimum((angles / (2 * np.pi) * self.n_bins).astype(int), self.n_bins - 1)
         step = self.cell_size / 2.0
@@ -59,6 +66,10 @@ class BearingEvidence:
         if not result:
             return np.zeros((0, 2))
         return (np.array(result, dtype=float) + 0.5) * self.cell_size
+
+    def min_marking_distance(self) -> float:
+        """Distancia mínima al origen del rayo para marcar una celda (m)."""
+        return 2.0 * self.cell_size * self.n_bins / (2.0 * np.pi)
 
     def bearings(self, x: float, y: float) -> int:
         """Número de sectores distintos desde los que se ha cruzado la celda de (x, y)."""

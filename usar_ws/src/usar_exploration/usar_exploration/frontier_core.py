@@ -162,6 +162,71 @@ def find_safe_goal(cell: Tuple[int, int], free: np.ndarray, clearance: np.ndarra
     return int(rows[k] + r_lo), int(cols[k] + c_lo)
 
 
+def line_of_sight(occupied: np.ndarray, info: GridInfo, start: Tuple[float, float],
+                  end: Tuple[float, float], ignore_end: float = 0.0) -> bool:
+    """
+    Cierto si el segmento start–end (m) no cruza celdas ocupadas del mapa.
+
+    Los últimos ignore_end m antes de `end` no se comprueban: el objetivo puede estar junto a
+    (o contra) un escombro que el mapa marca como ocupado.
+    """
+    length = math.hypot(end[0] - start[0], end[1] - start[1])
+    usable = length - ignore_end
+    if usable <= 0.0:
+        return True
+    n = max(2, int(np.ceil(usable / (0.5 * info.resolution))) + 1)
+    t = np.linspace(0.0, usable / max(length, 1e-9), n)
+    xs = start[0] + t * (end[0] - start[0])
+    ys = start[1] + t * (end[1] - start[1])
+    cols = np.floor((xs - info.origin_x) / info.resolution).astype(int)
+    rows = np.floor((ys - info.origin_y) / info.resolution).astype(int)
+    inside = (rows >= 0) & (rows < info.height) & (cols >= 0) & (cols < info.width)
+    return not bool(occupied[rows[inside], cols[inside]].any())
+
+
+def find_view_goal(target: Tuple[float, float], robot: Tuple[float, float], free: np.ndarray,
+                   occupied: np.ndarray, clearance: np.ndarray, info: GridInfo,
+                   min_distance: float, max_distance: float, min_clearance: float,
+                   cost_ok: Optional[np.ndarray] = None, ignore_end: float = 0.3,
+                   max_checks: int = 400) -> Optional[Tuple[float, float, float]]:
+    """
+    Punto desde el que mirar un objetivo (p. ej. un candidato a víctima oído por el sonido).
+
+    Busca celdas libres, con holgura, a entre min_distance y max_distance m del objetivo; elige
+    la más cercana al robot que tenga línea de vista hasta el objetivo (si ninguna la tiene, la
+    más cercana al robot). Devuelve (x, y, yaw) con yaw mirando al objetivo, o None.
+    """
+    tcell = info.world_to_cell(*target)
+    r = int(np.ceil(max_distance / info.resolution))
+    if tcell is None:
+        return None
+    row0, col0 = tcell
+    r_lo, r_hi = max(row0 - r, 0), min(row0 + r + 1, info.height)
+    c_lo, c_hi = max(col0 - r, 0), min(col0 + r + 1, info.width)
+    valid = free[r_lo:r_hi, c_lo:c_hi] & (clearance[r_lo:r_hi, c_lo:c_hi] >= min_clearance)
+    if cost_ok is not None:
+        valid &= cost_ok[r_lo:r_hi, c_lo:c_hi]
+    rows, cols = np.nonzero(valid)
+    if len(rows) == 0:
+        return None
+    rows, cols = rows + r_lo, cols + c_lo
+    xs = info.origin_x + (cols + 0.5) * info.resolution
+    ys = info.origin_y + (rows + 0.5) * info.resolution
+    d_target = np.hypot(xs - target[0], ys - target[1])
+    ring = (d_target >= min_distance) & (d_target <= max_distance)
+    if not ring.any():
+        return None
+    xs, ys = xs[ring], ys[ring]
+    order = np.argsort(np.hypot(xs - robot[0], ys - robot[1]))
+    best = int(order[0])
+    for k in order[:max_checks]:
+        if line_of_sight(occupied, info, (xs[k], ys[k]), target, ignore_end):
+            best = int(k)
+            break
+    x, y = float(xs[best]), float(ys[best])
+    return x, y, math.atan2(target[1] - y, target[0] - x)
+
+
 def is_blacklisted(point: Tuple[float, float], blacklist: Sequence[Tuple[float, float]],
                    radius: float) -> bool:
     """Cierto si el punto está a menos de radius (m) de alguna meta de la lista negra."""

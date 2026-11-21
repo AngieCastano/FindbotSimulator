@@ -29,7 +29,7 @@ SRC = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 ROBOT_PACKAGES = ['usar_description', 'usar_bringup', 'usar_exploration', 'usar_detection']
 SIM_SENSORS = 'usar_sim_sensors'
 #: Mensajes que puede publicar un simulador de sensores: solo medidas.
-MEASUREMENT_TYPES = {'Image', 'GasConcentration'}
+MEASUREMENT_TYPES = {'Image', 'GasConcentration', 'SoundDirection'}
 #: Archivos del robot autorizados a nombrar el ground truth, y por qué.
 ALLOWED = {
     os.path.join('usar_bringup', 'launch', 'mission.launch.py'):

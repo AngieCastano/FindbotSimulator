@@ -47,7 +47,7 @@ PARAMS = {
     'detections_topic': '/victims/detections',
     # Detecciones de cada detector por separado (/victims/detections/<modalidad>): métricas por
     # modalidad sensorial. Solo se informan las modalidades que publicaron algo.
-    'modalities': ['color_shape', 'human_shape', 'thermal', 'co2'],
+    'modalities': ['color_shape', 'human_shape', 'thermal', 'co2', 'sound'],
     'status_topic': '/exploration/status',
     'image_dpi': 150,
 }

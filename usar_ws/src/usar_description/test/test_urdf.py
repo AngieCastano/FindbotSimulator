@@ -139,3 +139,15 @@ def test_co2_link(params):
     assert xyz == pytest.approx([co2['x'], co2['y'], co2['z']])
     # Posición tomada de hardware/CLAUDE.md (Geometría: TGS4161 en co2_link).
     assert xyz == pytest.approx([0.03, 0.05, 0.0275])
+
+
+# ---------------------------------------------------------------------- micrófonos (fase 2)
+def test_mic_array_link(params):
+    root = ET.fromstring(xacro.process_file(XACRO_FILE, mappings={
+        'robot_params': PARAMS_FILE, 'use_sound': 'true'}).toxml())
+    joint = next(j for j in root.findall('joint') if j.get('name') == 'mic_array_joint')
+    xyz = [float(v) for v in joint.find('origin').get('xyz').split()]
+    # Posición tomada de hardware/CLAUDE.md (Geometría: ReSpeaker en mic_array_link).
+    assert xyz == pytest.approx([-0.12, 0.0, 0.0835])
+    mic = params['mic_array']
+    assert xyz == pytest.approx([mic['x'], mic['y'], mic['z']])

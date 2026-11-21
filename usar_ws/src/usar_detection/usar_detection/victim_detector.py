@@ -5,12 +5,15 @@ Entradas (solo sensores y estimación propia del robot):
   /camera/image, /camera/depth_image, /camera/camera_info   (detectores de la cámara RGB-D)
   /thermal/image (32FC1, °C)                                 (detector térmico, fase 2)
   /co2/concentration (usar_msgs/GasConcentration, ppm)       (detector de CO₂, fase 2)
+  /sound/doa (usar_msgs/SoundDirection)                      (detector de sonido, fase 2)
   TF map → frames ópticos de las cámaras (SLAM + modelo del robot)
   /map (mapa del propio robot): descarta evidencia en celdas desconocidas y limita los rayos
        de la cámara térmica, que se triangulan (intersección de rayos desde varias direcciones)
 Salidas:
   /victims/markers     (visualization_msgs/MarkerArray) víctimas confirmadas y tentativas
   /victims/detections  (usar_msgs/VictimDetectionArray, frame map) víctimas confirmadas
+  /victims/candidates  (VictimDetectionArray) candidatos de los detectores guía (cue_only, p. ej.
+                       sonido): aún sin confirmar; el explorador va a mirarlos
                        (fusionadas), con los detectores (modalidades) que confirmaron cada una
   /victims/detections/<detector> (VictimDetectionArray) confirmadas por cada detector solo
   /victims/debug_image (sensor_msgs/Image) imagen con la segmentación superpuesta
@@ -26,6 +29,7 @@ Regla de diseño: este nodo NUNCA lee ground_truth.yaml ni poses de Gazebo.
 
 import csv
 from datetime import datetime
+import math
 import os
 
 import cv2
@@ -45,13 +49,15 @@ import tf2_ros
 from usar_detection import co2_detector  # noqa: F401  (registra Co2Detector)
 from usar_detection import color_detector  # noqa: F401  (registra ColorShapeDetector)
 from usar_detection import human_shape_detector  # noqa: F401  (registra HumanShapeDetector)
+from usar_detection import sound_detector  # noqa: F401  (registra SoundDetector)
 from usar_detection import thermal_detector  # noqa: F401  (registra ThermalDetector)
 from usar_detection.bearing_evidence import BearingEvidence
 from usar_detection.map_filter import known_cells_mask, ray_extents
 from usar_detection.sign_of_life import (Co2Observation, create_detector, intrinsics_from_fov,
-                                         Observation, ThermalObservation)
+                                         Observation, SoundObservation, ThermalObservation)
 from usar_detection.tracker import VictimRegistry, VictimTracker
-from usar_msgs.msg import GasConcentration, VictimDetection, VictimDetectionArray
+from usar_msgs.msg import (GasConcentration, SoundDirection, VictimDetection,
+                           VictimDetectionArray)
 from visualization_msgs.msg import Marker, MarkerArray
 
 PARAMS = {
@@ -86,6 +92,8 @@ PARAMS = {
     'map_occupied_threshold': 65,
     # Sensor de CO₂ (fase 2)
     'co2_topic': '/co2/concentration',
+    # Arreglo de micrófonos (fase 2)
+    'sound_topic': '/sound/doa',
     'log_dir': '',
     'log_prefix': 'victims',
 }
@@ -106,7 +114,7 @@ def quaternion_matrix(q):
 
 #: Nombre corto de cada detector en la etiqueta de los marcadores.
 SOURCE_LABELS = {'color_shape': 'color', 'human_shape': 'forma', 'thermal': 'calor',
-                 'co2': 'CO₂'}
+                 'co2': 'CO₂', 'sound': 'sonido'}
 
 
 def _victim_msg(victim_id, position, confidence, observations, sources):
@@ -149,11 +157,20 @@ class VictimDetector(Node):
         self.rgbd_detectors = [d for d in self.detectors if d.sensor == 'rgbd']
         self.thermal_detectors = [d for d in self.detectors if d.sensor == 'thermal']
         self.co2_detectors = [d for d in self.detectors if d.sensor == 'co2']
+        self.sound_detectors = [d for d in self.detectors if d.sensor == 'sound']
+        # Triangulación de los sensores sin distancia: parámetros de la térmica en el nodo
+        # (thermal_*); los demás los da el propio detector (bearing_params).
+        thermal_bearing = {
+            'cell': self.p['thermal_bearing_cell'], 'bins': self.p['thermal_bearing_bins'],
+            'min_bearings': self.p['thermal_min_bearings'],
+            'min_range': self.p['thermal_min_range'], 'beyond': self.p['thermal_ray_beyond'],
+            'stop_unknown': True}
+        self.bearing_params = {
+            d.name: thermal_bearing if d.sensor == 'thermal' else d.bearing_params()
+            for d in self.thermal_detectors + self.sound_detectors}
         self.bearing_evidence = {
-            d.name: BearingEvidence(self.p['thermal_bearing_cell'],
-                                    self.p['thermal_bearing_bins'],
-                                    self.p['thermal_min_bearings'])
-            for d in self.thermal_detectors}
+            name: BearingEvidence(bp['cell'], bp['bins'], bp['min_bearings'])
+            for name, bp in self.bearing_params.items()}
         self.trackers = {
             det.name: VictimTracker(**{
                 'min_observations': self.p['min_observations'],
@@ -164,6 +181,8 @@ class VictimDetector(Node):
             for det in self.detectors}
         self.registry = VictimRegistry(self.p['merge_distance'], self.p['match_distance'])
         self.position_sigmas = {det.name: det.position_sigma for det in self.detectors}
+        self.cue_only = {det.name for det in self.detectors if det.cue_only}
+        self.candidates_seen = 0
         self.sensor_to_base = {}
         self.map_msg = None
         self.map_grid = None
@@ -171,6 +190,9 @@ class VictimDetector(Node):
         self.co2_readings = 0
         self.co2_last = None
         self.co2_time = None
+        self.sound_msgs = 0
+        self.sound_rays = 0
+        self.sound_time = None
         self.thermal_last = None
         self.rays_cast = 0
         self.rays_hit = 0           # celdas de evidencia trianguladas (acumulado)
@@ -200,13 +222,18 @@ class VictimDetector(Node):
                                      qos_profile_sensor_data)
         if self.co2_detectors:
             self.create_subscription(GasConcentration, self.p['co2_topic'], self._on_co2, 10)
-        if self.p['require_known_map'] or self.thermal_detectors:
+        if self.sound_detectors:
+            self.create_subscription(SoundDirection, self.p['sound_topic'], self._on_sound, 10)
+        if self.p['require_known_map'] or self.thermal_detectors or self.sound_detectors:
             latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                                  reliability=ReliabilityPolicy.RELIABLE)
             self.create_subscription(OccupancyGrid, self.p['map_topic'], self._on_map, latched)
 
         self.marker_pub = self.create_publisher(MarkerArray, '/victims/markers', 10)
         self.pose_pub = self.create_publisher(VictimDetectionArray, '/victims/detections', 10)
+        # Candidatos de los detectores guía (p. ej. sonido): el explorador va a mirarlos.
+        self.candidate_pub = self.create_publisher(VictimDetectionArray, '/victims/candidates',
+                                                   10)
         self.debug_pub = self.create_publisher(Image, '/victims/debug_image', 2)
         self.thermal_debug_pub = self.create_publisher(Image, '/thermal/debug_image', 2)
         # Confirmaciones de cada detector por separado (métricas por modalidad).
@@ -310,6 +337,8 @@ class VictimDetector(Node):
                f'{self.rays_hit} celdas trianguladas; ' if self.thermal_detectors else '')
             + (f'CO₂: {self.co2_readings} lecturas, última {self.co2_last or 0:.0f} ppm; '
                if self.co2_detectors else '')
+            + (f'sonido: {self.sound_msgs} lecturas, {self.sound_rays} direcciones de voz con '
+               'el robot quieto; ' if self.sound_detectors else '')
             + f'{len(self.registry.victims)} víctimas confirmadas; por detector: ' + ', '.join(
                 f'{name} {len(t.confirmed())} confirmadas/{len(t.tentative())} tentativas'
                 for name, t in self.trackers.items()))
@@ -374,7 +403,11 @@ class VictimDetector(Node):
             detections = detector.detect(obs)
             self.detections += len(detections)
             all_detections.extend(detections)
-            points = self._triangulate(detector.name, detections, world)
+            rays = np.vstack([d.rays for d in detections]) @ world[:3, :3].T \
+                if detections else np.zeros((0, 3))
+            bounds = np.concatenate([d.ray_max_range for d in detections]) \
+                if detections else np.zeros(0)
+            points = self._triangulate(detector.name, rays, bounds, world[:2, 3])
             self.trackers[detector.name].update(self._in_known_map(points), sec)
         self._update_registry(sec, msg.header.stamp)
         if self.p['publish_debug_image'] and \
@@ -402,36 +435,72 @@ class VictimDetector(Node):
             self.trackers[detector.name].update(self._in_known_map(points), sec)
         self._update_registry(sec, msg.header.stamp)
 
-    def _triangulate(self, name, detections, world):
-        """
-        Puntos de evidencia (frame global) de detecciones con rayos y sin distancia.
+    def _on_sound(self, msg):
+        """Dirección de llegada del sonido → rayo en el mapa (solo con el robot quieto)."""
+        stamp = Time.from_msg(msg.header.stamp)
+        sec = stamp.nanoseconds * 1e-9
+        tf = self._camera_transform(msg.header.frame_id, stamp)
+        if tf is None:
+            return
+        self.sound_msgs += 1
+        self.sound_time = sec
+        q = tf.transform.rotation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        origin = (tf.transform.translation.x, tf.transform.translation.y)
+        obs = SoundObservation(azimuth=float(msg.azimuth), level_db=float(msg.level_db),
+                               voice_activity=bool(msg.voice_activity),
+                               confidence=float(msg.confidence), position=origin, yaw=yaw,
+                               stamp_sec=sec, frame_id=msg.header.frame_id)
+        for detector in self.sound_detectors:
+            detections = detector.detect(obs)
+            self.detections += len(detections)
+            self.sound_rays += len(detections)
+            if detections:
+                rays = np.vstack([d.rays for d in detections])
+                bounds = np.concatenate([d.ray_max_range for d in detections])
+                points = self._triangulate(detector.name, rays, bounds, np.array(origin))
+            else:
+                points = np.zeros((0, 3))
+            self.trackers[detector.name].update(self._in_known_map(points), sec)
+        self._update_registry(sec, msg.header.stamp)
 
-        Cada rayo se recorta con el /map del robot (hasta el primer obstáculo más
-        thermal_ray_beyond, la primera celda desconocida o su distancia máxima) y se suma a la
-        rejilla de intersección; son evidencia las celdas que este rayo toca y que ya se han
-        cruzado desde thermal_min_bearings direcciones distintas.
+    def _triangulate(self, name, rays, bounds, origin):
         """
-        if not detections or self.map_msg is None:
+        Puntos de evidencia (frame global) de rayos sin distancia (N×3, frame global).
+
+        Cada rayo se recorta con el /map del robot según los parámetros del detector (hasta el
+        primer obstáculo más `beyond`, la primera celda desconocida si `stop_unknown`, o su
+        distancia máxima) y se suma a su rejilla de intersección; son evidencia las celdas que
+        este rayo toca y que ya se han cruzado desde `min_bearings` direcciones distintas.
+        """
+        if len(rays) == 0 or self.map_msg is None:
             return np.zeros((0, 3))
-        rays = np.vstack([d.rays for d in detections]) @ world[:3, :3].T
-        bounds = np.concatenate([d.ray_max_range for d in detections])
+        bp = self.bearing_params[name]
         info = self.map_msg.info
-        origin = world[:3, 3]
         lengths = ray_extents(self.map_grid, info.origin.position.x, info.origin.position.y,
                               info.resolution, info.width, info.height, origin[:2], rays[:, :2],
-                              bounds, self.p['thermal_min_range'], self.p['thermal_ray_beyond'],
-                              self.p['map_occupied_threshold'])
-        self.rays_cast += len(lengths)
+                              bounds, bp['min_range'], bp['beyond'],
+                              self.p['map_occupied_threshold'], bp['stop_unknown'])
+        if name in (d.name for d in self.thermal_detectors):
+            self.rays_cast += len(lengths)
         xy = self.bearing_evidence[name].add_rays(origin[:2], rays[:, :2], lengths,
-                                                  self.p['thermal_min_range'])
-        self.rays_hit += len(xy)
+                                                  bp['min_range'])
+        if name in (d.name for d in self.thermal_detectors):
+            self.rays_hit += len(xy)
         return np.column_stack([xy, np.full(len(xy), self.p['thermal_evidence_height'])])
 
     def _update_registry(self, sec, stamp):
         """Fusiona las confirmaciones de todos los detectores, registra eventos y publica."""
         newly, retracted = self.registry.update(
             {name: t.confirmed() for name, t in self.trackers.items()},
-            self.p['min_observations'], self.position_sigmas)
+            self.p['min_observations'], self.position_sigmas, self.cue_only)
+        if len(self.registry.candidates) > self.candidates_seen:
+            for cand in self.registry.candidates:
+                x, y, _ = cand.position
+                self.get_logger().info(
+                    f'Candidato ({"+".join(cand.sources)}) en ({x:.2f}, {y:.2f}): falta que lo '
+                    'confirme un detector de víctimas')
+        self.candidates_seen = len(self.registry.candidates)
         for victim in newly:
             x, y, _ = victim.position
             self.get_logger().info(
@@ -486,6 +555,19 @@ class VictimDetector(Node):
             poses.victims.append(_victim_msg(victim.victim_id, victim.position,
                                              victim.confidence, victim.observations,
                                              victim.sources))
+        candidates = VictimDetectionArray()
+        candidates.header = poses.header
+        for cand in self.registry.candidates:
+            x, y, _ = cand.position
+            markers.append(marker('candidates', cand.victim_id, Marker.CYLINDER, (x, y, 0.15),
+                                  0.4, (1.0, 0.6, 0.0, 0.6)))
+            label = marker('candidate_labels', cand.victim_id, Marker.TEXT_VIEW_FACING,
+                           (x, y, 0.7), 0.25, (1.0, 0.8, 0.4, 1.0))
+            label.text = ('Candidato (' + '+'.join(SOURCE_LABELS.get(s, s) for s in cand.sources)
+                          + ')')
+            markers.append(label)
+            candidates.victims.append(_victim_msg(cand.victim_id, cand.position, cand.confidence,
+                                                  cand.observations, cand.sources))
         mid = 0
         for tracker in self.trackers.values():
             for track in tracker.tentative():
@@ -495,6 +577,7 @@ class VictimDetector(Node):
                                       (0.7, 0.7, 0.7, 0.6)))
         self.marker_pub.publish(MarkerArray(markers=markers))
         self.pose_pub.publish(poses)
+        self.candidate_pub.publish(candidates)
         for name, pub in self.source_pubs.items():
             per_source = VictimDetectionArray()
             per_source.header = poses.header
@@ -546,7 +629,7 @@ class VictimDetector(Node):
     def destroy_node(self):
         """Escribe el resumen final de víctimas en el log antes de cerrar."""
         sim_time = max(self.last_processed or 0.0, self.thermal_last or 0.0,
-                       self.co2_time or 0.0)
+                       self.co2_time or 0.0, self.sound_time or 0.0)
         for victim in self.registry.victims:
             self._log_victim('final', victim, sim_time)
         if self._log is not None:

@@ -1,0 +1,21 @@
+# Se añade encima de detector.yaml con use_sound:=true (exploration.launch.py añade "sound" a la
+# lista de detectores): voz / golpes con el ReSpeaker (fase 2). Ver docs/fase11_sonido.md.
+victim_detector:
+  ros__parameters:
+    sound_topic: /sound/doa         # usar_msgs/SoundDirection (ReSpeaker o usar_sim_sensors)
+
+    sound:
+      # Guía, no confirmación: el arreglo da una sola dirección (la del sonido más fuerte) y en
+      # la evaluación con 3 semillas sus triangulaciones solas dieron ≈ 2 falsos positivos por
+      # misión. Sus estimaciones se publican como candidatos (/victims/candidates); el
+      # explorador va a mirarlos y la cámara confirma. Ver docs/fase11_sonido.md.
+      cue_only: true
+      min_confidence: 0.1           # confianza mínima de la dirección (SNR)
+      stationary_window: 1.0        # s: el robot debe estar quieto este tiempo...
+      stationary_motion: 0.03       # m ...sin moverse más de esto...
+      stationary_turn: 0.05         # rad ...ni girar más de esto (los motores tapan el sonido)
+      max_range: 10.0               # m: longitud de los rayos (atraviesan escombros)
+      bearing_cell: 0.3             # m: celda de la rejilla de intersección
+      bearing_bins: 12              # sectores de 30°
+      min_bearings: 3               # direcciones distintas para aceptar una celda
+      min_range: 0.3                # m: los rayos empiezan a esta distancia

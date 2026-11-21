@@ -71,3 +71,10 @@ co2:                    # sensor de CO₂ Figaro TGS4161 (fase 2: use_co2:=true)
   x: 0.03
   y: 0.05
   z: 0.0275
+
+mic_array:              # ReSpeaker USB Mic Array v2.0 (fase 2: use_sound:=true)
+  # Posición respecto a base_link tomada de hardware/CLAUDE.md (Geometría). Pendiente: alinear
+  # toda la geometría del robot simulado con el hardware.
+  x: -0.12
+  y: 0.0
+  z: 0.0835

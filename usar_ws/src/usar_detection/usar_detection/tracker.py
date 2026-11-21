@@ -283,6 +283,11 @@ class VictimRegistry:
     se unen: si la forma ve dos víctimas cercanas, una estimación de CO₂ entre ambas se asocia a
     la más cercana en vez de juntarlas. La fusión completa de evidencias de signos de vida es la
     Fase 13; aquí solo se evita publicar dos veces la misma víctima.
+
+    Detectores **guía** (`cue_only`, p. ej. el sonido): solos no confirman una víctima. Un grupo
+    formado solo por detectores guía queda como **candidato** (`self.candidates`: el explorador
+    va a mirarlo); se vuelve víctima cuando un detector confirmador (forma, color, calor, CO₂) lo
+    ve en el mismo sitio. Los candidatos no consumen números de víctima.
     """
 
     def __init__(self, merge_distance: float = 1.0, match_distance: float = 1.0):
@@ -292,16 +297,20 @@ class VictimRegistry:
         self._last: Dict[int, Tuple[float, float]] = {}   # número → última posición conocida
         self._confirmed_ids: Set[int] = set()
         self.victims: List[FusedVictim] = []
+        self.candidates: List[FusedVictim] = []
 
     def update(self, confirmed: Dict[str, List[Track]], min_observations: int,
-               sigmas: Optional[Dict[str, float]] = None
+               sigmas: Optional[Dict[str, float]] = None,
+               cue_only: Optional[Set[str]] = None
                ) -> Tuple[List[FusedVictim], List[int]]:
         """
         Recalcula las víctimas; devuelve (nuevas, números que dejaron de estar confirmados).
 
         sigmas: error de localización típico (m) de cada detector; por defecto 1 para todos.
+        cue_only: detectores guía (sus grupos solos son candidatos, no víctimas).
         """
         sigmas = sigmas or {}
+        cue_only = set(cue_only or ())
         # Primero los detectores más precisos (y, a igualdad, las víctimas con más evidencia).
         entries = sorted(((name, t) for name, tracks in confirmed.items() for t in tracks),
                          key=lambda e: (sigmas.get(e[0], 1.0), -e[1].observations))
@@ -324,6 +333,13 @@ class VictimRegistry:
             cluster['sources'].add(name)
             cluster['obs'] = max(cluster['obs'], track.observations)
             cluster['conf'] = max(cluster['conf'], track.confidence(min_observations))
+
+        cues = [c for c in clusters if c['sources'] <= cue_only]
+        self.candidates = [
+            FusedVictim(i + 1, tuple(float(v) for v in c['sum'] / c['w']), sorted(c['sources']),
+                        c['obs'], c['conf'])
+            for i, c in enumerate(sorted(cues, key=lambda c: -c['obs']))]
+        clusters = [c for c in clusters if not c['sources'] <= cue_only]
 
         free = dict(self._last)
         victims, newly = [], []

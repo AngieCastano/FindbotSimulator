@@ -9,6 +9,7 @@
 #   WORLD_PARAMS=dusty scripts/run_batch.sh 1 2 3   # variante del escenario (víctimas grises)
 #   USE_THERMAL=true scripts/run_batch.sh 42         # con cámara térmica y detector de calor
 #   USE_CO2=true scripts/run_batch.sh 42             # con sensor de CO₂ y su detector
+#   USE_SOUND=true scripts/run_batch.sh 42           # con micrófonos, su detector y paradas
 #
 # Variables opcionales:
 #   RESULTS_DIR      carpeta de salida (por defecto results/batch_<fecha>)
@@ -31,6 +32,7 @@ QUICK="${QUICK:-false}"
 WORLD_PARAMS="${WORLD_PARAMS:-}"
 USE_THERMAL="${USE_THERMAL:-false}"
 USE_CO2="${USE_CO2:-false}"
+USE_SOUND="${USE_SOUND:-false}"
 
 if ! command -v ros2 >/dev/null 2>&1 || ! ros2 pkg prefix usar_metrics >/dev/null 2>&1; then
   # shellcheck disable=SC1091
@@ -41,9 +43,10 @@ extra_args=()
 [ -n "$WORLD_PARAMS" ] && extra_args+=("world_params:=$WORLD_PARAMS")
 [ "$USE_THERMAL" = "true" ] && extra_args+=("use_thermal:=true")
 [ "$USE_CO2" = "true" ] && extra_args+=("use_co2:=true")
+[ "$USE_SOUND" = "true" ] && extra_args+=("use_sound:=true")
 cd "$REPO/usar_ws" || exit 1   # los mundos se generan en usar_ws/worlds/
 
-echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | térmica=$USE_THERMAL | CO₂=$USE_CO2 | resultados: $OUT"
+echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | térmica=$USE_THERMAL | CO₂=$USE_CO2 | sonido=$USE_SOUND | resultados: $OUT"
 failed=()
 for seed in "${SEEDS[@]}"; do
   log="$OUT/seed${seed}_launch.log"

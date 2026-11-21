@@ -95,7 +95,7 @@ def _launch_setup(context):
             'seed': config('seed'), 'worlds_dir': config('worlds_dir'),
             'world_params': config('world_params'), 'gui': config('gui'),
             'robot_params': config('robot_params'), 'use_thermal': config('use_thermal'),
-            'use_co2': config('use_co2'),
+            'use_co2': config('use_co2'), 'use_sound': config('use_sound'),
             'rviz': 'false',  # este launch abre su propio RViz con mapa y costmaps
         }.items())
 
@@ -139,6 +139,8 @@ def generate_launch_description():
                               description='Cámara térmica MLX90640 (fase 2)'),
         DeclareLaunchArgument('use_co2', default_value='false',
                               description='Sensor de CO₂ TGS4161 (fase 2)'),
+        DeclareLaunchArgument('use_sound', default_value='false',
+                              description='Arreglo de micrófonos ReSpeaker (fase 2)'),
         DeclareLaunchArgument('robot_params', default_value=os.path.join(
             description_share, 'config', 'robot.yaml')),
         DeclareLaunchArgument('slam_params', default_value=os.path.join(cfg, 'slam_toolbox.yaml')),

@@ -30,7 +30,7 @@ from launch_ros.actions import Node
 from usar_worldgen.worlds import ensure_world, resolve_world_params
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'quick', 'detection',
-                  'results_dir', 'use_thermal', 'use_co2']
+                  'results_dir', 'use_thermal', 'use_co2', 'use_sound']
 
 
 def _ensure_ground_truth(seed: int, worlds_dir: str, world_params: str) -> str:
@@ -103,6 +103,9 @@ def generate_launch_description():
                               description='Cámara térmica MLX90640 y detector de calor (fase 2)'),
         DeclareLaunchArgument('use_co2', default_value='false',
                               description='Sensor de CO₂ TGS4161 y detector de CO₂ (fase 2)'),
+        DeclareLaunchArgument('use_sound', default_value='false',
+                              description='Micrófonos ReSpeaker, detector de sonido y paradas '
+                                          'de escucha (fase 2)'),
         DeclareLaunchArgument('quick', default_value='false',
                               description='Prueba corta (5 min de exploración)'),
         DeclareLaunchArgument('detection', default_value='true',
