@@ -1,11 +1,11 @@
-# Variante "demo": escenario pequeño para ver el funcionamiento en pantalla (no para medir).
-# 10 × 10 m con el robot en el centro: las víctimas quedan a pocos metros y los sensores las
-# alcanzan enseguida. El robot empieza sin mapa (SLAM lo construye al explorar). Víctimas grises
-# como los escombros: el color no sirve, las detectan los signos de vida (calor, CO₂, radar,
-# sonido) y la forma.
-# Uso: ros2 launch usar_bringup mission.launch.py seed:=2 world_params:=demo use_thermal:=true \
+# Variante "demo": para ver el funcionamiento en pantalla (no para medir). Mismo tamaño y
+# densidad de escombros que el escenario por defecto (20 × 20 m, 40 escombros), con 3 víctimas;
+# con seed:=13 quedan a 2.1, 4.4 y 5.8 m del robot. El robot empieza sin mapa (SLAM lo construye
+# al explorar). Víctimas grises como los escombros: el color no sirve, las detectan los signos
+# de vida (calor, CO₂, radar, sonido) y la forma.
+# Uso: ros2 launch usar_bringup mission.launch.py seed:=13 world_params:=demo use_thermal:=true \
 #        use_co2:=true use_sound:=true use_radar:=true [camera_detection:=false]
-size: [10.0, 10.0]
-n_obstacles: 10               # pocos escombros: se ve bien el recorrido
+size: [20.0, 20.0]            # como los demás escenarios
+n_obstacles: 40               # misma densidad que default
 n_victims: 3
 victim_appearance: dusty      # grises "cubiertas de polvo": sin color distintivo
