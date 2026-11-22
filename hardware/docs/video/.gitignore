@@ -1,0 +1,3 @@
+# Videos generados por build_video.py (se regeneran con un solo comando)
+*.mp4
+build/

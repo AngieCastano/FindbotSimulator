@@ -1,0 +1,162 @@
+1
+00:00:00,200 --> 00:00:04,916
+Este es findbot, un robot que
+buscará víctimas entre escombros.
+
+2
+00:00:04,966 --> 00:00:10,968
+Antes de comprar un solo componente,
+probamos todo su circuito en el computador.
+
+3
+00:00:11,018 --> 00:00:14,750
+Así un error cuesta un
+clic, no una placa quemada.
+
+4
+00:00:15,200 --> 00:00:19,077
+La energía sale de una
+batería de dos celdas,
+
+5
+00:00:19,127 --> 00:00:24,750
+pasa por un fusible y dos reguladores
+que entregan cinco voltios.
+
+6
+00:00:25,200 --> 00:00:26,739
+El cerebro es un ESP32.
+
+7
+00:00:26,789 --> 00:00:32,750
+Lee los sensores y mueve los motores con un
+puente H, un circuito que invierte el giro.
+
+8
+00:00:33,200 --> 00:00:39,750
+La cámara y el LiDAR van por USB
+al portátil, que hace el mapa.
+
+9
+00:00:40,200 --> 00:00:46,427
+Con ese mapa dibujamos el esquemático en
+KiCad: alimentación, acondicionamiento
+
+10
+00:00:46,477 --> 00:00:51,750
+de señales, el ESP32, la potencia
+y los conectores de los sensores.
+
+11
+00:00:52,200 --> 00:00:57,579
+El revisor eléctrico busca pines
+sueltos o salidas en corto.
+
+12
+00:00:57,629 --> 00:00:59,750
+Resultado: cero errores.
+
+13
+00:01:00,200 --> 00:01:05,750
+Luego simulamos cada circuito en ngspice,
+que funciona como un osciloscopio virtual.
+
+14
+00:01:06,200 --> 00:01:11,792
+Cuando arrancan los motores, la batería cae,
+pero la salida de cinco voltios se mantiene.
+
+15
+00:01:11,842 --> 00:01:15,278
+El rizado, la pequeña ondulación
+que deja el regulador,
+
+16
+00:01:15,328 --> 00:01:17,750
+no pasa de treinta y cinco milivoltios.
+
+17
+00:01:18,200 --> 00:01:25,167
+El diagrama de Bode muestra cuánto amplifica
+el filtro del radar cada frecuencia.
+
+18
+00:01:25,217 --> 00:01:31,750
+Deja pasar de una décima a cuarenta y
+tres hercios: ahí está la respiración.
+
+19
+00:01:32,200 --> 00:01:40,320
+El PWM prende y apaga el motor veinte mil
+veces por segundo para regular su fuerza.
+
+20
+00:01:40,370 --> 00:01:44,750
+La corriente nunca pasa
+el límite del driver.
+
+21
+00:01:45,200 --> 00:01:52,750
+Este es el firmware real del robot,
+corriendo en Wokwi, un emulador del ESP32.
+
+22
+00:01:53,200 --> 00:01:59,750
+Le ordenamos avanzar y se
+activa la señal de los motores.
+
+23
+00:02:00,200 --> 00:02:03,136
+Estas perillas hacen de encoders,
+
+24
+00:02:03,186 --> 00:02:07,750
+los sensores que cuentan
+las vueltas de cada rueda.
+
+25
+00:02:08,200 --> 00:02:12,469
+El código es una máquina de estados:
+modos con reglas para pasar de uno a otro.
+
+26
+00:02:12,519 --> 00:02:15,750
+Sin órdenes por medio segundo,
+entra en modo seguro y frena.
+
+27
+00:02:16,200 --> 00:02:24,750
+Si baja la batería, primero avisa
+nivel bajo y luego apaga los motores.
+
+28
+00:02:25,200 --> 00:02:28,296
+Después vinieron las pruebas de estrés.
+
+29
+00:02:28,346 --> 00:02:34,750
+Monte Carlo sortea trescientos lotes de
+componentes; ninguno se sale del límite.
+
+30
+00:02:35,200 --> 00:02:39,761
+También probamos rueda
+bloqueada, ruido, frío y calor.
+
+31
+00:02:39,811 --> 00:02:42,750
+Setenta y dos pruebas, todas pasan.
+
+32
+00:02:43,200 --> 00:02:49,750
+Y corregimos cuatro cosas, como
+limitar el voltaje del motor.
+
+33
+00:02:50,200 --> 00:02:54,523
+El circuito quedó validado en simulación.
+
+34
+00:02:54,573 --> 00:02:59,750
+Ahora sí: a comprar
+componentes y armar el robot.
