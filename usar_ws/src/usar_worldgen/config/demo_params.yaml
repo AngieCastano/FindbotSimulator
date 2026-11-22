@@ -1,0 +1,8 @@
+# Variante "demo": escenario pequeño para ver el funcionamiento en pantalla (no para medir).
+# 10 × 10 m con el robot en el centro: las víctimas quedan a pocos metros y la cámara y la
+# cámara térmica las ven enseguida. El robot empieza sin mapa (SLAM lo construye al explorar).
+# Uso: ros2 launch usar_bringup mission.launch.py seed:=1 world_params:=demo use_thermal:=true
+size: [10.0, 10.0]
+n_obstacles: 10               # pocos escombros: se ve bien el recorrido
+n_victims: 3
+victim_appearance: orange     # naranjas: se distinguen a simple vista
