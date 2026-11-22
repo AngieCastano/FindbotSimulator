@@ -9,7 +9,7 @@
                                   [thermal_link → thermal_optical_frame], [co2_link],
                                   [mic_array_link]}
   Los sensores de la fase 2 solo se incluyen con use_thermal:=true / use_co2:=true /
-  use_sound:=true.
+  use_sound:=true / use_radar:=true.
   sim_pose:=true añade la pose real del robot (/sim/ground_truth/odom) para los simuladores de
   sensores de usar_sim_sensors (excepción del ground truth, ver CLAUDE.md); el robot no la usa.
 -->
@@ -19,6 +19,7 @@
   <xacro:arg name="use_thermal" default="false"/>
   <xacro:arg name="use_co2" default="false"/>
   <xacro:arg name="use_sound" default="false"/>
+  <xacro:arg name="use_radar" default="false"/>
   <xacro:arg name="sim_pose" default="false"/>
   <xacro:property name="p" value="${xacro.load_yaml('$(arg robot_params)')}"/>
   <xacro:property name="ch" value="${p['chassis']}"/>
@@ -30,6 +31,7 @@
   <xacro:property name="th" value="${p['thermal']}"/>
   <xacro:property name="co2" value="${p['co2']}"/>
   <xacro:property name="mic" value="${p['mic_array']}"/>
+  <xacro:property name="rad" value="${p['radar']}"/>
 
   <!-- ===================== Macros de inercia ===================== -->
   <xacro:macro name="box_inertia" params="m x y z ox:=0">
@@ -323,6 +325,23 @@
         <material name="findbot_black"/>
       </visual>
       <xacro:box_inertia m="0.02" x="0.07" y="0.07" z="0.01"/>
+    </link>
+  </xacro:if>
+
+  <!-- ===================== Radar Doppler HB100 (fase 2) ===================== -->
+  <!-- Gazebo no modela radar: la señal IF la genera usar_sim_sensors/radar_sim (antena hacia +x). -->
+  <xacro:if value="$(arg use_radar)">
+    <joint name="radar_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="radar_link"/>
+      <origin xyz="${rad['x']} ${rad['y']} ${rad['z']}" rpy="0 0 0"/>
+    </joint>
+    <link name="radar_link">
+      <visual>
+        <geometry><box size="0.01 0.048 0.046"/></geometry>
+        <material name="findbot_black"/>
+      </visual>
+      <xacro:box_inertia m="0.01" x="0.01" y="0.048" z="0.046"/>
     </link>
   </xacro:if>
 

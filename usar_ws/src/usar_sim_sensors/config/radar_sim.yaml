@@ -1,0 +1,33 @@
+# Señal IF del radar Doppler HB100 (Capa 2, solo simulación). Ver docs/fase12_radar.md.
+# ground_truth_file lo fija sim.launch.py (excepción del ground truth: ver CLAUDE.md).
+radar_sim:
+  ros__parameters:
+    pose_topic: /sim/ground_truth/odom   # pose y velocidad reales (solo para este simulador)
+    output_topic: /radar/signal          # usar_msgs/RadarSignal: lo mismo que el ESP32
+    base_frame: base_footprint
+    sensor_frame: radar_link
+    block_size: 20              # muestras por mensaje (1 s a 20 Hz)
+    seed: 0
+    # Respiración de las víctimas
+    breathing_fraction: 1.0     # fracción de víctimas que respiran de forma detectable
+    rate_bpm: [12.0, 20.0]      # respiraciones por minuto (sorteado por víctima)
+    displacement: [0.004, 0.008]   # m: amplitud del movimiento del pecho
+    # Propagación y antena
+    wavelength: 0.0285          # m (10,525 GHz)
+    ref_amplitude: 6.0e-5       # V: amplitud IF del eco de un pecho a 1 m en el eje del haz
+    beam_half_width_deg: 40.0   # −3 dB a ±40° (HB100: 80° en el plano horizontal)
+    obstacle_attenuation_db: 8.0   # dB por escombro y por vía (ida y vuelta: el doble)
+    min_distance: 0.3           # m
+    # Robot en marcha: ecos del escenario con desplazamiento Doppler 2·v/λ
+    clutter_amplitude: 1.5e-4   # V (antes del amplificador)
+    clutter_radius: 0.5         # m: el giro mueve el escenario a ω·radio respecto a la antena
+    # Circuito y ADC (hardware/CLAUDE.md: 2 etapas, 66,8 dB, 0,11–43 Hz, GPIO34 a 200 Hz)
+    noise_rms: 3.0e-6           # V eficaces referidos a la entrada (mezclador + MCP6004)
+    gain_db: 66.8
+    band_low: 0.11              # Hz
+    band_high: 43.0             # Hz
+    adc_rate: 200.0             # Hz
+    decimation: 10              # promedio de 10 muestras → 20 Hz publicados
+    adc_min: -1.25              # V respecto a VREF (1,30 V): saturación del ADC
+    adc_max: 1.10
+    adc_lsb: 0.0008             # V por cuenta (12 bits, atenuación de 11 dB)

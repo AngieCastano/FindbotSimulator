@@ -6,6 +6,7 @@ Entradas (solo sensores y estimación propia del robot):
   /thermal/image (32FC1, °C)                                 (detector térmico, fase 2)
   /co2/concentration (usar_msgs/GasConcentration, ppm)       (detector de CO₂, fase 2)
   /sound/doa (usar_msgs/SoundDirection)                      (detector de sonido, fase 2)
+  /radar/signal (usar_msgs/RadarSignal)                      (detector de radar, fase 2)
   TF map → frames ópticos de las cámaras (SLAM + modelo del robot)
   /map (mapa del propio robot): descarta evidencia en celdas desconocidas y limita los rayos
        de la cámara térmica, que se triangulan (intersección de rayos desde varias direcciones)
@@ -49,14 +50,16 @@ import tf2_ros
 from usar_detection import co2_detector  # noqa: F401  (registra Co2Detector)
 from usar_detection import color_detector  # noqa: F401  (registra ColorShapeDetector)
 from usar_detection import human_shape_detector  # noqa: F401  (registra HumanShapeDetector)
+from usar_detection import radar_detector  # noqa: F401  (registra RadarDetector)
 from usar_detection import sound_detector  # noqa: F401  (registra SoundDetector)
 from usar_detection import thermal_detector  # noqa: F401  (registra ThermalDetector)
 from usar_detection.bearing_evidence import BearingEvidence
 from usar_detection.map_filter import known_cells_mask, ray_extents
 from usar_detection.sign_of_life import (Co2Observation, create_detector, intrinsics_from_fov,
-                                         Observation, SoundObservation, ThermalObservation)
+                                         Observation, RadarObservation, SoundObservation,
+                                         ThermalObservation)
 from usar_detection.tracker import VictimRegistry, VictimTracker
-from usar_msgs.msg import (GasConcentration, SoundDirection, VictimDetection,
+from usar_msgs.msg import (GasConcentration, RadarSignal, SoundDirection, VictimDetection,
                            VictimDetectionArray)
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -94,6 +97,8 @@ PARAMS = {
     'co2_topic': '/co2/concentration',
     # Arreglo de micrófonos (fase 2)
     'sound_topic': '/sound/doa',
+    # Radar Doppler (fase 2)
+    'radar_topic': '/radar/signal',
     'log_dir': '',
     'log_prefix': 'victims',
 }
@@ -114,7 +119,7 @@ def quaternion_matrix(q):
 
 #: Nombre corto de cada detector en la etiqueta de los marcadores.
 SOURCE_LABELS = {'color_shape': 'color', 'human_shape': 'forma', 'thermal': 'calor',
-                 'co2': 'CO₂', 'sound': 'sonido'}
+                 'co2': 'CO₂', 'sound': 'sonido', 'radar': 'radar'}
 
 
 def _victim_msg(victim_id, position, confidence, observations, sources):
@@ -158,6 +163,7 @@ class VictimDetector(Node):
         self.thermal_detectors = [d for d in self.detectors if d.sensor == 'thermal']
         self.co2_detectors = [d for d in self.detectors if d.sensor == 'co2']
         self.sound_detectors = [d for d in self.detectors if d.sensor == 'sound']
+        self.radar_detectors = [d for d in self.detectors if d.sensor == 'radar']
         # Triangulación de los sensores sin distancia: parámetros de la térmica en el nodo
         # (thermal_*); los demás los da el propio detector (bearing_params).
         thermal_bearing = {
@@ -193,6 +199,9 @@ class VictimDetector(Node):
         self.sound_msgs = 0
         self.sound_rays = 0
         self.sound_time = None
+        self.radar_msgs = 0
+        self.radar_hits = 0
+        self.radar_time = None
         self.thermal_last = None
         self.rays_cast = 0
         self.rays_hit = 0           # celdas de evidencia trianguladas (acumulado)
@@ -224,6 +233,8 @@ class VictimDetector(Node):
             self.create_subscription(GasConcentration, self.p['co2_topic'], self._on_co2, 10)
         if self.sound_detectors:
             self.create_subscription(SoundDirection, self.p['sound_topic'], self._on_sound, 10)
+        if self.radar_detectors:
+            self.create_subscription(RadarSignal, self.p['radar_topic'], self._on_radar, 10)
         if self.p['require_known_map'] or self.thermal_detectors or self.sound_detectors:
             latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                                  reliability=ReliabilityPolicy.RELIABLE)
@@ -339,6 +350,9 @@ class VictimDetector(Node):
                if self.co2_detectors else '')
             + (f'sonido: {self.sound_msgs} lecturas, {self.sound_rays} direcciones de voz con '
                'el robot quieto; ' if self.sound_detectors else '')
+            + (f'radar: {self.radar_msgs} bloques, '
+               f'{sum(d.windows for d in self.radar_detectors)} ventanas con el robot quieto, '
+               f'{self.radar_hits} con respiración; ' if self.radar_detectors else '')
             + f'{len(self.registry.victims)} víctimas confirmadas; por detector: ' + ', '.join(
                 f'{name} {len(t.confirmed())} confirmadas/{len(t.tentative())} tentativas'
                 for name, t in self.trackers.items()))
@@ -461,6 +475,30 @@ class VictimDetector(Node):
                 points = self._triangulate(detector.name, rays, bounds, np.array(origin))
             else:
                 points = np.zeros((0, 3))
+            self.trackers[detector.name].update(self._in_known_map(points), sec)
+        self._update_registry(sec, msg.header.stamp)
+
+    def _on_radar(self, msg):
+        """Bloque de la señal del radar → detector (punto en el frame global si respira)."""
+        stamp = Time.from_msg(msg.header.stamp)
+        sec = stamp.nanoseconds * 1e-9
+        tf = self._camera_transform(msg.header.frame_id, stamp)
+        if tf is None:
+            return
+        self.radar_msgs += 1
+        self.radar_time = sec
+        q = tf.transform.rotation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        obs = RadarObservation(samples=list(msg.samples), sample_rate=float(msg.sample_rate),
+                               saturated=bool(msg.saturated),
+                               position=(tf.transform.translation.x, tf.transform.translation.y),
+                               yaw=yaw, stamp_sec=sec, frame_id=msg.header.frame_id)
+        for detector in self.radar_detectors:
+            detections = detector.detect(obs)
+            self.detections += len(detections)
+            self.radar_hits += len(detections)
+            points = np.vstack([d.points for d in detections]) if detections \
+                else np.zeros((0, 3))
             self.trackers[detector.name].update(self._in_known_map(points), sec)
         self._update_registry(sec, msg.header.stamp)
 
@@ -629,7 +667,7 @@ class VictimDetector(Node):
     def destroy_node(self):
         """Escribe el resumen final de víctimas en el log antes de cerrar."""
         sim_time = max(self.last_processed or 0.0, self.thermal_last or 0.0,
-                       self.co2_time or 0.0, self.sound_time or 0.0)
+                       self.co2_time or 0.0, self.sound_time or 0.0, self.radar_time or 0.0)
         for victim in self.registry.victims:
             self._log_victim('final', victim, sim_time)
         if self._log is not None:

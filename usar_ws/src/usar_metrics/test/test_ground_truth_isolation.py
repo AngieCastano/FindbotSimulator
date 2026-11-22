@@ -34,7 +34,7 @@ ROBOT_PACKAGES = ['usar_description', 'usar_bringup', 'usar_exploration', 'usar_
 SIM_SENSORS = 'usar_sim_sensors'
 #: Mensajes que puede publicar un simulador de sensores: solo medidas. Odometry es la medida de
 #: los encoders de rueda (odom_noise_sim), que se calcula solo con la odometría ideal de DiffDrive.
-MEASUREMENT_TYPES = {'Image', 'GasConcentration', 'SoundDirection', 'Odometry'}
+MEASUREMENT_TYPES = {'Image', 'GasConcentration', 'SoundDirection', 'RadarSignal', 'Odometry'}
 #: Archivos del simulador de encoders: no pueden usar la pose real ni el ground truth.
 WHEEL_ODOM_FILES = ['odom_noise_sim.py', 'odom_model.py']
 #: Archivos del robot autorizados a nombrar el ground truth, y por qué.

@@ -223,7 +223,8 @@ visión de 69°.
 | Tópico | Tipo | Publica → usa |
 |---|---|---|
 | `/scan` | `sensor_msgs/LaserScan` | Gazebo → SLAM, costmaps, collision monitor |
-| `/odom` | `nav_msgs/Odometry` | Gazebo (odometría de ruedas) → Nav2, evaluador |
+| `/odom` | `nav_msgs/Odometry` | `odom_noise_sim` (odometría de ruedas de Gazebo con ruido de encoders) → SLAM, Nav2, evaluador |
+| `/radar/signal` | `usar_msgs/RadarSignal` (señal IF del HB100, 20 Hz; `use_radar:=true`) | `radar_sim` (o el ESP32) → detector |
 | `/camera/image`, `/camera/depth_image`, `/camera/camera_info` | `sensor_msgs/Image`, `CameraInfo` | Gazebo → detector, nube de profundidad |
 | `/map` | `nav_msgs/OccupancyGrid` | slam_toolbox → Nav2, explorador, evaluador |
 | `/cmd_vel` | `geometry_msgs/Twist` | collision monitor → Gazebo |
@@ -232,7 +233,7 @@ visión de 69°.
 | `/exploration/frontiers` | `visualization_msgs/MarkerArray` | explorador → RViz |
 | `/victims/markers` | `visualization_msgs/MarkerArray` | detector → RViz |
 | `/victims/detections` | `usar_msgs/VictimDetectionArray` (incluye las modalidades) | detector → evaluador |
-| `/victims/candidates` | `usar_msgs/VictimDetectionArray` (candidatos del sonido, sin confirmar) | detector → explorador |
+| `/victims/candidates` | `usar_msgs/VictimDetectionArray` (candidatos del sonido y del radar, sin confirmar) | detector → explorador |
 | `/victims/debug_image` | `sensor_msgs/Image` | detector → RViz |
 
 Ningún parámetro está fijo en el código: todos están en archivos YAML.

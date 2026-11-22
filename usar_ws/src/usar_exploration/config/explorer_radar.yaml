@@ -1,0 +1,8 @@
+# Se añade encima de explorer.yaml con use_radar:=true. Ver docs/fase12_radar.md.
+# El radar Doppler solo ve la respiración con el robot quieto: tras parar, los filtros pasa-altos
+# del circuito tardan ≈ 2,5 s en descargar el escalón de los ecos del escenario, y luego analiza
+# 5 s (una o dos respiraciones), con 1 s de guarda al final. 11 s de parada dan 2–3 ventanas.
+frontier_explorer:
+  ros__parameters:
+    listen_enabled: true
+    listen_duration: 11.0       # s (5 s solo con micrófonos)

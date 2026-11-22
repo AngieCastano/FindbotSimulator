@@ -11,6 +11,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/VictimDetectionArray.msg"
   "msg/GasConcentration.msg"
   "msg/SoundDirection.msg"
+  "msg/RadarSignal.msg"
   DEPENDENCIES geometry_msgs std_msgs
 )
 

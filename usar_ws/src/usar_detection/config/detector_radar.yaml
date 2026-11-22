@@ -1,0 +1,26 @@
+# Se añade encima de detector.yaml con use_radar:=true (exploration.launch.py añade "radar" a la
+# lista de detectores): respiración con el radar Doppler HB100 (fase 2). Ver docs/fase12_radar.md.
+victim_detector:
+  ros__parameters:
+    radar_topic: /radar/signal      # usar_msgs/RadarSignal (ESP32 o usar_sim_sensors)
+
+    radar:
+      # Guía, no confirmación: el HB100 no mide distancia ni dirección (solo "algo respira dentro
+      # del haz"). Sus detecciones se publican como candidatos (/victims/candidates); el
+      # explorador va a mirarlos y la cámara confirma.
+      cue_only: true
+      window: 5.0                   # s analizados (una o dos respiraciones)
+      settle_time: 2.5              # s quieto antes de la ventana (asentamiento de los pasa-altos)
+      guard_time: 1.0               # s: la ventana termina antes de la última muestra (si el
+                                    #   robot arranca, la pose lo delata y no se analiza)
+      stationary_motion: 0.01       # m: el robot no debe moverse más de esto...
+      stationary_turn: 0.01         # rad ...ni girar más de esto en settle + window + guard
+                                    #   (un tirón de 1° deja un transitorio en el circuito)
+      detrend_order: 2              # polinomio restado (cola del asentamiento)
+      nfft: 512                     # puntos de la FFT (con ceros)
+      breath_band: [0.15, 1.0]      # Hz: respiración (12–20/min) y sus armónicos
+      noise_band: [2.0, 8.0]        # Hz: referencia de ruido
+      min_snr_db: 10.0              # densidad en la banda sobre la del ruido
+      min_band_rms: 0.003           # V eficaces en la banda (rechaza restos del asentamiento)
+      nominal_range: 1.5            # m sobre el eje de la antena (sin distancia medida)
+      evidence_height: 0.1          # m (solo visualización)

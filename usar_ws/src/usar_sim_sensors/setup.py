@@ -31,6 +31,7 @@ setup(
             'co2_sim = usar_sim_sensors.co2_sim:main',
             'sound_sim = usar_sim_sensors.sound_sim:main',
             'odom_noise_sim = usar_sim_sensors.odom_noise_sim:main',
+            'radar_sim = usar_sim_sensors.radar_sim:main',
         ],
     },
 )

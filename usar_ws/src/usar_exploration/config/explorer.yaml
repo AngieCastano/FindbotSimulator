@@ -88,7 +88,8 @@ frontier_explorer:
     # Paradas de escucha: cada listen_period s de navegación el robot se detiene listen_duration s
     # (cancela la meta y la reenvía). Con los motores en marcha el ruido tapa los sonidos débiles
     # (micrófonos) y el radar Doppler solo ve la respiración con el robot quieto.
-    # exploration.launch.py las activa con use_sound:=true.
+    # exploration.launch.py las activa con use_sound:=true, y con use_radar:=true las alarga
+    # (explorer_radar.yaml).
     listen_enabled: false
     listen_period: 45.0         # s de navegación entre paradas
     listen_duration: 5.0        # s

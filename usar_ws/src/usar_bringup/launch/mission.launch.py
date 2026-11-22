@@ -30,7 +30,7 @@ from launch_ros.actions import Node
 from usar_worldgen.worlds import ensure_world, resolve_world_params
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'quick', 'detection',
-                  'results_dir', 'use_thermal', 'use_co2', 'use_sound']
+                  'results_dir', 'use_thermal', 'use_co2', 'use_sound', 'use_radar']
 
 
 def _ensure_ground_truth(seed: int, worlds_dir: str, world_params: str) -> str:
@@ -106,6 +106,9 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sound', default_value='false',
                               description='Micrófonos ReSpeaker, detector de sonido y paradas '
                                           'de escucha (fase 2)'),
+        DeclareLaunchArgument('use_radar', default_value='false',
+                              description='Radar Doppler HB100, detector de respiración y '
+                                          'paradas de 11 s (fase 2)'),
         DeclareLaunchArgument('quick', default_value='false',
                               description='Prueba corta (5 min de exploración)'),
         DeclareLaunchArgument('detection', default_value='true',

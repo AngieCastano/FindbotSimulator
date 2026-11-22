@@ -67,6 +67,19 @@ class SoundObservation:
 
 
 @dataclass
+class RadarObservation:
+    """Bloque de la señal IF del radar Doppler, con la pose de la antena."""
+
+    samples: Sequence[float]             # V respecto a VREF, de la más antigua a la más reciente
+    sample_rate: float                   # Hz
+    saturated: bool
+    position: Tuple[float, float]        # (x, y) de la antena en el frame global
+    yaw: float                           # orientación de la antena en el frame global (rad)
+    stamp_sec: float = 0.0               # instante de la última muestra
+    frame_id: str = ''
+
+
+@dataclass
 class Detection:
     """Una detección de un signo de vida."""
 
@@ -94,8 +107,8 @@ class SignOfLifeDetector(ABC):
     #: Error de localización típico (m): pesa la posición al unir detectores distintos.
     position_sigma = 0.3
     #: Sensor que consume: 'rgbd' (Observation), 'thermal' (ThermalObservation), 'co2'
-    #: (Co2Observation) o 'sound' (SoundObservation). Las detecciones de 'co2' y 'sound' ya
-    #: vienen en el frame global (puntos y rayos, respectivamente).
+    #: (Co2Observation), 'sound' (SoundObservation) o 'radar' (RadarObservation). Las
+    #: detecciones de 'co2', 'radar' (puntos) y 'sound' (rayos) ya vienen en el frame global.
     sensor = 'rgbd'
 
     def __init__(self, params: Dict):

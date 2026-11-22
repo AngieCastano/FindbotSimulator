@@ -78,3 +78,9 @@ mic_array:              # ReSpeaker USB Mic Array v2.0 (fase 2: use_sound:=true)
   x: -0.12
   y: 0.0
   z: 0.0835
+
+radar:                  # radar Doppler HB100 10,525 GHz (fase 2: use_radar:=true)
+  # Posición respecto a base_link tomada de hardware/CLAUDE.md (Geometría); antena hacia +x.
+  x: 0.06
+  y: 0.0
+  z: 0.037
