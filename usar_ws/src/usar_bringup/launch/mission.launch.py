@@ -31,7 +31,8 @@ from usar_worldgen.worlds import ensure_world, resolve_world_params
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'quick', 'detection',
                   'results_dir', 'use_thermal', 'use_co2', 'use_sound', 'use_radar',
-                  'camera_detection', 'explorer_overlay']
+                  'camera_detection', 'explorer_overlay', 'firmware_sil', 'comm', 'teleop',
+                  'operator']
 
 
 def _ensure_ground_truth(seed: int, worlds_dir: str, world_params: str) -> str:
@@ -110,6 +111,17 @@ def generate_launch_description():
         DeclareLaunchArgument('use_radar', default_value='false',
                               description='Radar Doppler HB100, detector de respiración y '
                                           'paradas de 11 s (fase 2)'),
+        DeclareLaunchArgument('firmware_sil', default_value='false',
+                              description='Firmware del ESP32 en el lazo (PID y odometría del '
+                                          'firmware en vez de DiffDrive)'),
+        DeclareLaunchArgument('comm', default_value='false',
+                              description='Modelo de comunicación WiFi robot ↔ estación '
+                                          'remota (pérdidas por distancia y escombros)'),
+        DeclareLaunchArgument('teleop', default_value='false',
+                              description='Teleoperación desde la estación remota (sin '
+                                          'explorador)'),
+        DeclareLaunchArgument('operator', default_value='human',
+                              description='Con teleop: human o simulated (operador simulado)'),
         DeclareLaunchArgument('camera_detection', default_value='true',
                               description='Detectores de la cámara (forma humana y color); false '
                                           '= solo signos de vida'),

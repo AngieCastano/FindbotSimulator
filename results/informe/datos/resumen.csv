@@ -1,0 +1,21 @@
+grupo,metrica,n,media,desv,min,max
+"hard (B, D, F)",deteccion_pct,3,29.167,7.217,25.0,37.5
+"hard (B, D, F)",falsos_positivos,3,0.333,0.577,0.0,1.0
+"hard (B, D, F)",error_victima_m,3,0.28,0.137,0.122,0.369
+"hard (B, D, F)",cobertura_pct,3,60.927,3.294,57.5,64.07
+"hard (B, D, F)",recorrido_m,3,90.313,19.618,73.876,112.031
+"hard (B, D, F)",primera_victima_s,3,771.96,54.736,708.97,807.95
+"hard (B, D, F)",error_slam_m,3,0.067,0.02,0.054,0.09
+"hard (B, D, F)",error_odom_m,3,0.593,0.351,0.288,0.977
+"hard (B, D, F)",error_ekf_m,3,0.557,0.354,0.294,0.96
+"hard (B, D, F)",rtf,2,0.673,0.089,0.611,0.736
+las 4,deteccion_pct,4,31.875,8.004,25.0,40.0
+las 4,falsos_positivos,4,0.25,0.5,0.0,1.0
+las 4,error_victima_m,4,0.313,0.13,0.122,0.414
+las 4,cobertura_pct,4,70.493,19.32,57.5,99.19
+las 4,recorrido_m,4,92.285,16.497,73.876,112.031
+las 4,primera_victima_s,4,601.205,344.422,88.94,807.95
+las 4,error_slam_m,4,0.066,0.017,0.054,0.09
+las 4,error_odom_m,4,0.649,0.307,0.288,0.977
+las 4,error_ekf_m,4,0.949,0.835,0.294,2.123
+las 4,rtf,2,0.673,0.089,0.611,0.736

@@ -1,0 +1,15 @@
+# Operador de la estación remota (sim_operator). mode y area_size los fija station.launch.py.
+sim_operator:
+  ros__parameters:
+    max_time: 900.0            # s: misma duración que la exploración autónoma (explorer.yaml)
+    heartbeat_rate: 5.0        # Hz
+    margin: 1.5                # m desde los muros
+    lane_spacing: 3.0          # m entre carriles (alcance útil de la cámara y la térmica)
+    goal_tolerance: 1.0        # m
+    progress_distance: 0.3     # m que debe avanzar el robot...
+    progress_timeout: 20.0     # ...en este tiempo (s); si no, siguiente meta
+    goal_timeout: 90.0         # s máximos por meta
+    goal_resend: 5.0           # s: reenvío de la meta mientras el robot no arranque (meta perdida)
+    free_search_radius: 1.5    # m: si la meta cae en un obstáculo del mapa, la celda libre más cercana
+    global_frame: map
+    robot_frame: base_footprint

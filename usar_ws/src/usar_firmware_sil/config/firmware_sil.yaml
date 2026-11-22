@@ -1,0 +1,18 @@
+# Firmware en el lazo (sim:=true, firmware_sil:=true). Las constantes del control (periodo,
+# PID, límites, vigilante, cuentas del encoder) NO están aquí: salen de config_gen.h, igual que
+# en el ESP32. Aquí solo lo que el firmware no tiene: el motor y la batería simulados.
+# Fuente: hardware/config/robot_hw.yaml → motor (Adafruit 3777, TT 1:48 a 6 V).
+firmware_sil:
+  ros__parameters:
+    battery_voltage: 7.8          # V: 2 celdas Li-ion a media carga (entre 8.4 llena y 6.6 baja)
+    motor_v_test: 6.0             # V del ensayo del fabricante
+    motor_no_load_speed: 26.18    # rad/s en la rueda: 250 rpm sin carga a 6 V
+    motor_stall_torque: 0.0785    # N·m en la rueda: 0.8 kg·cm de par de paro a 6 V
+    motor_friction_torque: 0.008  # N·m: ≈ 10 % del par de paro (la zona muerta del firmware,
+                                  #   motor_deadband 0.12, es la que vence la fricción)
+    left_joint: left_wheel_joint
+    right_joint: right_wheel_joint
+    odom_frame: odom
+    base_frame: base_footprint
+    twist_variance_linear: 2.5e-5   # (m/s)²: cuantización del encoder a 50 Hz y patinaje
+    twist_variance_angular: 1.0e-4  # (rad/s)²

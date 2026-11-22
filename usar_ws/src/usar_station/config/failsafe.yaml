@@ -1,0 +1,7 @@
+# Parada segura por pérdida del enlace (a bordo del robot).
+link_failsafe:
+  ros__parameters:
+    timeout: 1.0               # s sin latido de la estación (latido a 5 Hz: 5 latidos perdidos)
+    heartbeat_topic: /station_heartbeat
+    stop_topic: /cmd_vel_teleop
+    cancel_service: /navigate_to_pose/_action/cancel_goal

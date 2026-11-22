@@ -1,0 +1,13 @@
+# Firmware en el lazo (firmware_sil:=true): par de cada rueda calculado por el firmware del ESP32
+# (usar_firmware_sil, modelo del motor TT) → ApplyJointForce de Gazebo.
+- ros_topic_name: /firmware/left_wheel_torque
+  gz_topic_name: /model/findbot/joint/left_wheel_joint/cmd_force
+  ros_type_name: std_msgs/msg/Float64
+  gz_type_name: gz.msgs.Double
+  direction: ROS_TO_GZ
+
+- ros_topic_name: /firmware/right_wheel_torque
+  gz_topic_name: /model/findbot/joint/right_wheel_joint/cmd_force
+  ros_type_name: std_msgs/msg/Float64
+  gz_type_name: gz.msgs.Double
+  direction: ROS_TO_GZ

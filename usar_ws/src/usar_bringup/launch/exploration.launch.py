@@ -26,7 +26,7 @@ from usar_worldgen.worlds import resolve_world_params
 import yaml
 
 FORWARDED_ARGS = ['seed', 'worlds_dir', 'world_params', 'gui', 'rviz', 'rviz_config',
-                  'use_thermal', 'use_co2', 'use_sound', 'use_radar']
+                  'use_thermal', 'use_co2', 'use_sound', 'use_radar', 'firmware_sil', 'comm']
 
 
 def generate_launch_description():
@@ -37,8 +37,33 @@ def generate_launch_description():
         launch_arguments={name: LaunchConfiguration(name) for name in FORWARDED_ARGS}.items())
     exploration_config = os.path.join(exploration_share, 'config')
 
+    def station(context):
+        """Estación remota (teleop:=true): enlace, failsafe, operador y RViz de la estación."""
+        world_params = LaunchConfiguration('world_params').perform(context)
+        params_path, tag = resolve_world_params(world_params)
+        size = [20.0, 20.0]
+        for path in (os.path.join(get_package_share_directory('usar_worldgen'), 'config',
+                                  'default_params.yaml'), params_path):
+            if path:
+                with open(path, encoding='utf-8') as stream:
+                    size = (yaml.safe_load(stream) or {}).get('size', size)
+        seed = LaunchConfiguration('seed').perform(context)
+        variant = f'_{tag}' if tag else ''
+        return [IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(
+                get_package_share_directory('usar_station'), 'launch', 'station.launch.py')),
+            launch_arguments={
+                'operator': LaunchConfiguration('operator').perform(context),
+                'area_size': ','.join(str(float(v)) for v in size),
+                'rviz': LaunchConfiguration('rviz').perform(context),
+                'seed': seed,
+                'log_dir': LaunchConfiguration('results_dir').perform(context),
+                'log_prefix': f'seed{seed}{variant}'}.items())]
+
     def explorer(context):
         """Nodo explorador; con quick:=true añade encima los parámetros de la prueba corta."""
+        if LaunchConfiguration('teleop').perform(context).lower() == 'true':
+            return station(context)     # teleoperado: la estación remota sustituye al explorador
         params = [LaunchConfiguration('explorer_params').perform(context)]
         if LaunchConfiguration('quick').perform(context).lower() == 'true':
             params.append(os.path.join(exploration_config, 'explorer_quick.yaml'))
@@ -114,6 +139,18 @@ def generate_launch_description():
                               description='Prueba corta (explorer_quick.yaml: 5 min)'),
         DeclareLaunchArgument('detection', default_value='true',
                               description='Ejecutar el detector de víctimas'),
+        DeclareLaunchArgument('firmware_sil', default_value='false',
+                              description='Firmware del ESP32 en el lazo (PID y odometría del '
+                                          'firmware en vez de DiffDrive)'),
+        DeclareLaunchArgument('comm', default_value='false',
+                              description='Modelo de comunicación WiFi robot ↔ estación '
+                                          'remota (pérdidas por distancia y escombros)'),
+        DeclareLaunchArgument('teleop', default_value='false',
+                              description='Teleoperación desde la estación remota: sin explorador '
+                                          'autónomo; estación con RViz y mando'),
+        DeclareLaunchArgument('operator', default_value='human',
+                              description='Con teleop: human (teclado / metas en RViz) o '
+                                          'simulated (operador simulado, metas de barrido)'),
         DeclareLaunchArgument('camera_detection', default_value='true',
                               description='Detectores de la cámara (forma humana y color); false '
                                           '= solo signos de vida'),

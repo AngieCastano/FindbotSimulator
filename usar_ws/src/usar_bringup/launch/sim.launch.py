@@ -8,6 +8,7 @@ Uso:
     ros2 launch usar_bringup sim.launch.py use_co2:=true       # con el sensor de CO₂ (fase 2)
     ros2 launch usar_bringup sim.launch.py use_sound:=true     # con los micrófonos (fase 2)
     ros2 launch usar_bringup sim.launch.py use_radar:=true     # con el radar Doppler (fase 2)
+    ros2 launch usar_bringup sim.launch.py firmware_sil:=true  # firmware del ESP32 en el lazo
 
 Si worlds/seed<N>/ no existe, se genera con usar_worldgen. El robot aparece en la pose de
 spawn.yaml (archivo público). Este launch no lee ground_truth.yaml: solo pasa su ruta a los
@@ -44,6 +45,8 @@ def _launch_setup(context):
     use_co2 = LaunchConfiguration('use_co2').perform(context).lower() == 'true'
     use_sound = LaunchConfiguration('use_sound').perform(context).lower() == 'true'
     use_radar = LaunchConfiguration('use_radar').perform(context).lower() == 'true'
+    firmware_sil = LaunchConfiguration('firmware_sil').perform(context).lower() == 'true'
+    comm = LaunchConfiguration('comm').perform(context).lower() == 'true'
     # Pose real del robot (siempre en simulación): la leen los simuladores de gases/sonido/radar
     # y el evaluador (error de localización). Ningún nodo del robot la usa.
     sim_pose = True
@@ -61,6 +64,7 @@ def _launch_setup(context):
                   'use_co2': 'true' if use_co2 else 'false',
                   'use_sound': 'true' if use_sound else 'false',
                   'use_radar': 'true' if use_radar else 'false',
+                  'firmware_sil': 'true' if firmware_sil else 'false',
                   'sim_pose': 'true' if sim_pose else 'false'}).toxml()
 
     # -r: arrancar la simulación; sin GUI: solo servidor con renderizado headless (sensores).
@@ -103,11 +107,25 @@ def _launch_setup(context):
     # Pose real y simuladores de la Capa 2 que la necesitan (excepción del ground truth).
     sim_sensors = []
     sim_sensors_share = get_package_share_directory('usar_sim_sensors')
-    # Ruido de los encoders: siempre en simulación (DiffDrive solo da la odometría ideal).
-    sim_sensors.append(Node(
-        package='usar_sim_sensors', executable='odom_noise_sim', output='screen',
-        parameters=[os.path.join(sim_sensors_share, 'config', 'odom_noise_sim.yaml'),
-                    {'use_sim_time': True, 'seed': seed}]))
+    if firmware_sil:
+        # Firmware del ESP32 en el lazo: su PID mueve las ruedas (par) y su odometría de encoders
+        # publica /odom (con la cuantización real del encoder; el patinaje lo da Gazebo).
+        sim_sensors += [
+            Node(package='usar_firmware_sil', executable='firmware_sil', output='screen',
+                 parameters=[os.path.join(get_package_share_directory('usar_firmware_sil'),
+                                          'config', 'firmware_sil.yaml'),
+                             {'use_sim_time': True}]),
+            Node(package='ros_gz_bridge', executable='parameter_bridge', name='sil_bridge',
+                 output='screen',
+                 parameters=[{'config_file': os.path.join(description_share, 'config',
+                                                          'bridge_sil.yaml'),
+                              'use_sim_time': True}])]
+    else:
+        # Ruido de los encoders sobre la odometría ideal de DiffDrive.
+        sim_sensors.append(Node(
+            package='usar_sim_sensors', executable='odom_noise_sim', output='screen',
+            parameters=[os.path.join(sim_sensors_share, 'config', 'odom_noise_sim.yaml'),
+                        {'use_sim_time': True, 'seed': seed}]))
     if sim_pose:
         sim_sensors.append(Node(
             package='ros_gz_bridge', executable='parameter_bridge', name='sim_pose_bridge',
@@ -132,6 +150,14 @@ def _launch_setup(context):
         sim_sensors.append(Node(
             package='usar_sim_sensors', executable='radar_sim', output='screen',
             parameters=[os.path.join(sim_sensors_share, 'config', 'radar_sim.yaml'),
+                        {'use_sim_time': True, 'seed': seed,
+                         'ground_truth_file': os.path.join(world_dir, 'ground_truth.yaml')}]))
+
+    # Enlace WiFi estación ↔ robot (la estación y el relé están en usar_station).
+    if comm:
+        sim_sensors.append(Node(
+            package='usar_sim_sensors', executable='comm_sim', output='screen',
+            parameters=[os.path.join(sim_sensors_share, 'config', 'comm_sim.yaml'),
                         {'use_sim_time': True, 'seed': seed,
                          'ground_truth_file': os.path.join(world_dir, 'ground_truth.yaml')}]))
 
@@ -174,5 +200,11 @@ def generate_launch_description():
                               description='Arreglo de micrófonos ReSpeaker (fase 2)'),
         DeclareLaunchArgument('use_radar', default_value='false',
                               description='Radar Doppler HB100 (fase 2)'),
+        DeclareLaunchArgument('comm', default_value='false',
+                              description='Señal WiFi robot ↔ estación '
+                                          '(usar_sim_sensors/comm_sim)'),
+        DeclareLaunchArgument('firmware_sil', default_value='false',
+                              description='Firmware del ESP32 en el lazo (PID y odometría del '
+                                          'firmware en vez de DiffDrive)'),
         OpaqueFunction(function=_launch_setup),
     ])

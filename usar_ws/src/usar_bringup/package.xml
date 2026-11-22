@@ -40,6 +40,8 @@
   <exec_depend>usar_detection</exec_depend>
   <exec_depend>usar_metrics</exec_depend>
   <exec_depend>usar_worldgen</exec_depend>
+  <exec_depend>usar_firmware_sil</exec_depend>
+  <exec_depend>usar_station</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -98,7 +98,8 @@ def _launch_setup(context):
             'world_params': config('world_params'), 'gui': config('gui'),
             'robot_params': config('robot_params'), 'use_thermal': config('use_thermal'),
             'use_co2': config('use_co2'), 'use_sound': config('use_sound'),
-            'use_radar': config('use_radar'),
+            'use_radar': config('use_radar'), 'firmware_sil': config('firmware_sil'),
+            'comm': config('comm'),
             'rviz': 'false',  # este launch abre su propio RViz con mapa y costmaps
         }.items())
 
@@ -150,6 +151,12 @@ def generate_launch_description():
                               description='Arreglo de micrófonos ReSpeaker (fase 2)'),
         DeclareLaunchArgument('use_radar', default_value='false',
                               description='Radar Doppler HB100 (fase 2)'),
+        DeclareLaunchArgument('firmware_sil', default_value='false',
+                              description='Firmware del ESP32 en el lazo (PID y odometría del '
+                                          'firmware en vez de DiffDrive)'),
+        DeclareLaunchArgument('comm', default_value='false',
+                              description='Modelo de comunicación WiFi robot ↔ estación '
+                                          'remota (pérdidas por distancia y escombros)'),
         DeclareLaunchArgument('robot_params', default_value=os.path.join(
             description_share, 'config', 'robot.yaml')),
         DeclareLaunchArgument('slam_params', default_value=os.path.join(cfg, 'slam_toolbox.yaml')),

@@ -1,0 +1,5 @@
+mision,descripcion,detectadas,victimas,deteccion_pct,falsos_positivos,error_victima_m,cobertura_pct,recorrido_m,primera_victima_s,error_slam_m,error_odom_m,error_ekf_m,rtf,fuente
+G0,"cámara, dusty 20 m",2,5,40.0,0,0.414,99.19,98.2,88.94,0.063,0.815,2.123,,results/geom_check/seed1_dusty_20261122_014126.json
+B,"cámara + térmica, hard 30 m",3,8,37.5,1,0.347,61.21,112.031,708.97,0.09,0.977,0.294,0.611,results/ablation/hard/B/seed1_hard_20261122_025718.json
+D,"cámara + sonido, hard 30 m",2,8,25.0,0,0.122,64.07,85.031,798.96,0.054,0.288,0.96,0.736,results/ablation/hard/D/seed1_hard_20261122_034751.json
+F,"todos, hard 30 m",2,8,25.0,0,0.369,57.5,73.876,807.95,0.055,0.515,0.417,,results/ablation/hard/F/seed1_hard_20261122_015921.json

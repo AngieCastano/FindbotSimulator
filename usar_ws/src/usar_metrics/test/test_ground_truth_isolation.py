@@ -30,11 +30,13 @@ import yaml
 
 SRC = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # usar_sim_sensors NO está en la lista: es la excepción de la Capa 2 (ver docstring).
-ROBOT_PACKAGES = ['usar_description', 'usar_bringup', 'usar_exploration', 'usar_detection']
+ROBOT_PACKAGES = ['usar_description', 'usar_bringup', 'usar_exploration', 'usar_detection',
+                  'usar_station']
 SIM_SENSORS = 'usar_sim_sensors'
 #: Mensajes que puede publicar un simulador de sensores: solo medidas. Odometry es la medida de
 #: los encoders de rueda (odom_noise_sim), que se calcula solo con la odometría ideal de DiffDrive.
-MEASUREMENT_TYPES = {'Image', 'GasConcentration', 'SoundDirection', 'RadarSignal', 'Odometry'}
+MEASUREMENT_TYPES = {'Image', 'GasConcentration', 'SoundDirection', 'RadarSignal', 'Odometry',
+                     'LinkQuality'}
 #: Archivos del simulador de encoders: no pueden usar la pose real ni el ground truth.
 WHEEL_ODOM_FILES = ['odom_noise_sim.py', 'odom_model.py']
 #: Archivos del robot autorizados a nombrar el ground truth, y por qué.
@@ -160,7 +162,8 @@ def test_sim_sensors_publish_only_measurements():
         f'Mensajes no permitidos: {published - MEASUREMENT_TYPES}'
 
 
-@pytest.mark.parametrize('package', ['usar_bringup', 'usar_exploration', 'usar_detection'])
+@pytest.mark.parametrize('package', ['usar_bringup', 'usar_exploration', 'usar_detection',
+                                     'usar_station'])
 def test_robot_does_not_subscribe_to_sim_topics(package):
     """Los tópicos /sim/* (pose real, imagen cruda) solo los usan los simuladores de sensores."""
     offending = []
@@ -201,7 +204,7 @@ def test_evaluator_publishes_nothing():
 
 
 @pytest.mark.parametrize('bridge_file', ['bridge.yaml', 'bridge_thermal.yaml',
-                                         'bridge_sim_pose.yaml'])
+                                         'bridge_sim_pose.yaml', 'bridge_sil.yaml'])
 def test_bridge_does_not_expose_model_poses(bridge_file):
     path = os.path.join(SRC, 'usar_description', 'config', bridge_file)
     with open(path, 'r', encoding='utf-8') as stream:
@@ -212,10 +215,16 @@ def test_bridge_does_not_expose_model_poses(bridge_file):
                '/camera/depth_image', '/camera/camera_info', '/sim/thermal/image_raw',
                '/sim/ground_truth/odom',  # pose real: solo para usar_sim_sensors
                '/sim/wheel_odom'}  # encoders ideales: solo para odom_noise_sim
+    # Firmware en el lazo: par de las ruedas, de ROS a Gazebo (un mando, no una pose).
+    commands = {f'/model/findbot/joint/{side}_wheel_joint/cmd_force' for side in ('left', 'right')}
     topics = {e['gz_topic_name'] for e in entries}
-    assert topics <= allowed, f'Tópicos de Gazebo no auditados en el puente: {topics - allowed}'
+    assert topics <= allowed | commands, \
+        f'Tópicos de Gazebo no auditados en el puente: {topics - allowed - commands}'
     for entry in entries:
         assert '/world/' not in entry['gz_topic_name']
+        if entry['gz_topic_name'] in commands:
+            assert entry['direction'] == 'ROS_TO_GZ'
+            continue
         assert '/model/' not in entry['gz_topic_name']
 
 

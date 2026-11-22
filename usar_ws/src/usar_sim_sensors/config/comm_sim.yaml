@@ -1,0 +1,21 @@
+# Enlace WiFi 2.4 GHz estación remota ↔ robot (Capa 2, solo simulación; opción inalámbrica del
+# diseño, ver CLAUDE.md). ground_truth_file lo fija sim.launch.py. Fuentes de cada valor en
+# results/informe/INFORME_IMPLEMENTACION_TRL4.md (las no verificadas van marcadas).
+comm_sim:
+  ros__parameters:
+    pose_topic: /sim/ground_truth/odom   # pose real del robot (solo para este simulador)
+    output_topic: /comm/link             # usar_msgs/LinkQuality: RSSI como lo reporta la radio
+    station_x: -12.0           # m: estación fuera del área de escombros, frente al muro oeste
+    station_y: 0.0
+    rate: 10.0                 # Hz
+    seed: 0
+    frequency: 2.437e9         # Hz (canal 6)
+    ref_distance: 1.0          # m: d0 (pérdida de Friis en espacio libre a 1 m ≈ 40 dB)
+    tx_power_dbm: 20.0         # dBm: potencia máxima del ESP32 en 802.11b
+    tx_gain_dbi: 2.0           # dBi: antena del robot
+    rx_gain_dbi: 2.0           # dBi: antena de la estación
+    path_loss_exponent: 3.0    # n: interiores con obstrucciones (2 = espacio libre)
+    obstacle_attenuation_db: 10.0   # dB por escombro atravesado (bloque de concreto)
+    wall_attenuation_db: 12.0  # dB por el muro perimetral (estación fuera del área)
+    shadowing_sigma_db: 3.0    # dB: desvanecimiento lento (sombra) log-normal
+    shadowing_time: 2.0        # s: tiempo de correlación de la sombra

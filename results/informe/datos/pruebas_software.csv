@@ -1,0 +1,11 @@
+paquete,casos,pasan,fallan,omitidos
+usar_bringup,9,8,0,1
+usar_description,15,14,0,1
+usar_detection,89,88,0,1
+usar_exploration,32,31,0,1
+usar_firmware_sil,4,4,0,0
+usar_metrics,49,48,0,1
+usar_sim_sensors,33,32,0,1
+usar_station,12,11,0,1
+usar_worldgen,84,83,0,1
+total,327,319,0,8

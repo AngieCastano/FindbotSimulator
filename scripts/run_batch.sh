@@ -13,6 +13,7 @@
 #   USE_RADAR=true scripts/run_batch.sh 42           # con el radar Doppler, su detector y paradas de 11 s
 #   CAMERA_DETECTION=false USE_THERMAL=true scripts/run_batch.sh 42   # solo signos de vida
 #   EXPLORER_OVERLAY=<yaml> scripts/run_batch.sh 42  # parámetros extra del explorador (p. ej. γ)
+#   FIRMWARE_SIL=true COMM=true TELEOP=true scripts/run_batch.sh 1  # teleoperado (operador simulado)
 #
 # Variables opcionales:
 #   RESULTS_DIR      carpeta de salida (por defecto results/batch_<fecha>)
@@ -39,6 +40,10 @@ USE_SOUND="${USE_SOUND:-false}"
 USE_RADAR="${USE_RADAR:-false}"
 CAMERA_DETECTION="${CAMERA_DETECTION:-true}"
 EXPLORER_OVERLAY="${EXPLORER_OVERLAY:-}"
+FIRMWARE_SIL="${FIRMWARE_SIL:-false}"
+COMM="${COMM:-false}"
+TELEOP="${TELEOP:-false}"
+OPERATOR="${OPERATOR:-simulated}"
 
 if ! command -v ros2 >/dev/null 2>&1 || ! ros2 pkg prefix usar_metrics >/dev/null 2>&1; then
   # shellcheck disable=SC1091
@@ -56,9 +61,12 @@ extra_args=()
 [ "$USE_RADAR" = "true" ] && extra_args+=("use_radar:=true")
 [ "$CAMERA_DETECTION" = "false" ] && extra_args+=("camera_detection:=false")
 [ -n "$EXPLORER_OVERLAY" ] && extra_args+=("explorer_overlay:=$EXPLORER_OVERLAY")
+[ "$FIRMWARE_SIL" = "true" ] && extra_args+=("firmware_sil:=true")
+[ "$COMM" = "true" ] && extra_args+=("comm:=true")
+[ "$TELEOP" = "true" ] && extra_args+=("teleop:=true" "operator:=$OPERATOR")
 cd "$REPO/usar_ws" || exit 1   # los mundos se generan en usar_ws/worlds/
 
-echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | térmica=$USE_THERMAL | CO₂=$USE_CO2 | sonido=$USE_SOUND | radar=$USE_RADAR | cámara=$CAMERA_DETECTION | explorador+=${EXPLORER_OVERLAY:-} | resultados: $OUT"
+echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | térmica=$USE_THERMAL | CO₂=$USE_CO2 | sonido=$USE_SOUND | radar=$USE_RADAR | cámara=$CAMERA_DETECTION | explorador+=${EXPLORER_OVERLAY:-} | firmware_sil=$FIRMWARE_SIL | comm=$COMM | teleop=$TELEOP | resultados: $OUT"
 failed=()
 for seed in "${SEEDS[@]}"; do
   log="$OUT/seed${seed}_launch.log"

@@ -1,0 +1,7 @@
+metrica,valor
+rtf_global,0.962
+control_hz,50.026
+control_dt_p5_ms,18.468
+control_dt_p95_ms,21.497
+v_max_m_s,0.284
+w_max_rad_s,1.088

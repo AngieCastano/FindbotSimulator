@@ -20,6 +20,7 @@
   <xacro:arg name="use_co2" default="false"/>
   <xacro:arg name="use_sound" default="false"/>
   <xacro:arg name="use_radar" default="false"/>
+  <xacro:arg name="firmware_sil" default="false"/>
   <xacro:arg name="sim_pose" default="false"/>
   <xacro:property name="p" value="${xacro.load_yaml('$(arg robot_params)')}"/>
   <xacro:property name="ch" value="${p['chassis']}"/>
@@ -408,6 +409,10 @@
 
   <!-- ===================== Plugins de Gazebo Harmonic ===================== -->
   <gazebo>
+    <!-- Por defecto, DiffDrive (ruedas ideales a la velocidad pedida). Con firmware_sil:=true
+         lo sustituye el firmware del ESP32 en el lazo (usar_firmware_sil): su PID manda un par a
+         cada rueda (ApplyJointForce) y la odometría sale de sus encoders. -->
+    <xacro:unless value="$(arg firmware_sil)">
     <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
       <left_joint>left_wheel_joint</left_joint>
       <right_joint>right_wheel_joint</right_joint>
@@ -431,6 +436,17 @@
       <frame_id>odom</frame_id>
       <child_frame_id>base_footprint</child_frame_id>
     </plugin>
+    </xacro:unless>
+    <xacro:if value="$(arg firmware_sil)">
+      <plugin filename="gz-sim-apply-joint-force-system"
+              name="gz::sim::systems::ApplyJointForce">
+        <joint_name>left_wheel_joint</joint_name>
+      </plugin>
+      <plugin filename="gz-sim-apply-joint-force-system"
+              name="gz::sim::systems::ApplyJointForce">
+        <joint_name>right_wheel_joint</joint_name>
+      </plugin>
+    </xacro:if>
 
     <plugin filename="gz-sim-joint-state-publisher-system"
             name="gz::sim::systems::JointStatePublisher">

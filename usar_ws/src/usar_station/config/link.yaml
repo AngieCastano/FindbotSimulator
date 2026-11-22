@@ -1,0 +1,37 @@
+# Enlace robot ↔ estación remota (usar_station/comm_relay). Lo que cruza el enlace y cómo.
+# compress: la imagen se transmitiría comprimida (su tiempo en el aire usa compression_ratio).
+# max_rate: tasa máxima en el origen (Hz); priority: high = cola de control (WMM), no espera al video.
+channel:                       # capa MAC/PHY de 802.11 (fuentes en el informe TRL 4)
+  sensitivity_dbm: -90.0       # dBm: sensibilidad del receptor para tramas de datos
+  per_slope_db: 1.5            # dB: anchura de la transición de la tasa de error por trama
+  min_margin: -6.0             # dB bajo la sensibilidad: se pierde la asociación
+  retry_limit: 7               # reintentos de 802.11 antes de descartar la trama
+  frame_overhead: 0.0003       # s por intento (preámbulo, espera aleatoria, ACK)
+  base_latency: 0.004          # s: pila de red y serialización en los extremos
+  max_latency: 1.0             # s: cola máxima; más retraso = mensaje descartado
+  compression_ratio: 20.0      # JPEG ≈ 20:1 para imágenes 640 × 480
+  rates:                       # [margen mínimo dB, Mb/s] (adaptación de tasa de 802.11n)
+    - [25.0, 65.0]
+    - [18.0, 39.0]
+    - [12.0, 19.5]
+    - [6.0, 6.5]
+    - [0.0, 1.0]
+
+links:
+  # Robot → estación: sensores y estado
+  - {from: /camera/image, to: /station/camera/image, type: sensor_msgs/msg/Image, qos: best_effort, compress: true, max_rate: 10.0}
+  - {from: /thermal/debug_image, to: /station/thermal/debug_image, type: sensor_msgs/msg/Image, qos: best_effort, compress: true, max_rate: 4.0}
+  - {from: /scan, to: /station/scan, type: sensor_msgs/msg/LaserScan, qos: best_effort}
+  - {from: /map, to: /station/map, type: nav_msgs/msg/OccupancyGrid, qos: latched, max_rate: 0.5}
+  - {from: /odometry/filtered, to: /station/odometry/filtered, type: nav_msgs/msg/Odometry, max_rate: 10.0}
+  - {from: /tf, to: /station/tf, type: tf2_msgs/msg/TFMessage, max_rate: 20.0}
+  - {from: /tf_static, to: /station/tf_static, type: tf2_msgs/msg/TFMessage, qos: latched}
+  - {from: /victims/markers, to: /station/victims/markers, type: visualization_msgs/msg/MarkerArray, max_rate: 1.0}
+  - {from: /victims/detections, to: /station/victims/detections, type: usar_msgs/msg/VictimDetectionArray, priority: high}
+  - {from: /victims/candidates, to: /station/victims/candidates, type: usar_msgs/msg/VictimDetectionArray, max_rate: 1.0}
+  - {from: /comm/link, to: /station/comm/link, type: usar_msgs/msg/LinkQuality, priority: high}
+  - {from: /firmware/state, to: /station/firmware/state, type: std_msgs/msg/String, priority: high}
+  # Estación → robot: mandos (cola de control)
+  - {from: /station/cmd_vel, to: /cmd_vel_teleop, type: geometry_msgs/msg/Twist, priority: high}
+  - {from: /station/goal_pose, to: /goal_pose, type: geometry_msgs/msg/PoseStamped, priority: high}
+  - {from: /station/heartbeat, to: /station_heartbeat, type: std_msgs/msg/Header, priority: high}
