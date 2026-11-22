@@ -22,6 +22,10 @@ victim_detector:
     match_distance: 1.0         # m: mantiene el número de una víctima entre actualizaciones
     merge_distance: 1.0         # m: confirmaciones de detectores distintos más cercanas son la
                                 #   misma víctima (cada detector tiene su propio mapa de evidencia)
+    # Fusión por puntaje (Fase 13): un grupo es víctima si la suma de los pesos (<detector>.weight)
+    # de los detectores distintos que lo ven alcanza confirm_score; si no, es un candidato que el
+    # explorador va a mirar. Pesos: docs/fase13_resultados.md.
+    confirm_score: 1.0
 
     # Descarta la evidencia que cae en celdas desconocidas o fuera del /map del robot: tras un
     # error momentáneo de pose de SLAM, una víctima puede proyectarse detrás de un muro.
@@ -33,6 +37,7 @@ victim_detector:
 
     # Signo de vida "forma humana por color" (MVP): víctimas de color naranja.
     color_shape:
+      weight: 1.0               # basta solo (cámara: forma y color, alta precisión)
       hsv_lower: [10, 150, 60]  # OpenCV: H ∈ [0, 180]; el naranja de las víctimas medido: H ≈ 20
       hsv_upper: [30, 255, 255] #   S ≥ 248, V ∈ [170, 255]; los escombros grises tienen S ≤ 30
       morph_kernel: 5           # px: apertura/cierre morfológico para limpiar la máscara
@@ -48,6 +53,7 @@ victim_detector:
     # Signo de vida "forma humana" por geometría 3D (Fase 8): no usa el color. Ver
     # docs/fase8_forma_humana.md. La cámara está a 0.12 m del suelo y mira al frente.
     human_shape:
+      weight: 1.0               # basta solo
       stride: 2                 # px: se procesa 1 de cada 4 píxeles
       min_depth: 0.3            # m
       max_depth: 5.0            # m

@@ -116,6 +116,9 @@ class SignOfLifeDetector(ABC):
         #: Detector guía (`<nombre>.cue_only: true`): sus confirmaciones solas no son víctimas,
         #: sino candidatos que el explorador va a mirar (ver VictimRegistry).
         self.cue_only = bool(params.get('cue_only', False))
+        #: Peso en la fusión por puntaje (`<nombre>.weight`): un grupo es víctima si la suma de
+        #: los pesos de sus detectores alcanza confirm_score. Por defecto 1 (0 si es guía).
+        self.weight = float(params.get('weight', 0.0 if self.cue_only else 1.0))
 
     @abstractmethod
     def detect(self, observation: Observation) -> List[Detection]:

@@ -12,7 +12,7 @@ min_gap: 0.05                   # separación mínima entre objetos
 n_victims: 5
 robot_spawn: [0.0, 0.0, 0.0]    # x, y, yaw
 spawn_clearance: 1.0            # zona libre alrededor del spawn
-robot_radius: 0.30              # = robot_radius de Nav2 (radio físico 0.25 m + 5 cm de margen)
+robot_radius: 0.23              # = robot_radius de Nav2 (radio físico 0.18 m + 5 cm de margen)
 grid_resolution: 0.05           # igual a la resolución del /map de slam_toolbox
 victim_reach_distance: 1.0      # distancia máx. desde zona alcanzable a la víctima
 victim_appearance: orange       # orange (MVP) | dusty (grises "cubiertas de polvo")
@@ -22,6 +22,8 @@ ambient_temperature_c: 20.0     # suelo, muros y escombros (cámara térmica, Fa
 victim_temperature_c: 34.0      # superficie de una persona vestida (no los 37 °C internos)
 n_warm_debris: 0                # escombros tibios (falsos positivos térmicos); 0 = ninguno
 warm_debris_temperature_range: [28.0, 45.0]  # °C: sol, tuberías, motores
+vocal_fraction: 1.0             # víctimas que hacen ruido (conscientes); las lee sound_sim
+breathing_fraction: 1.0         # víctimas con respiración detectable; las lee radar_sim
 wall_height: 1.0
 wall_thickness: 0.2
 max_attempts: 50                # reintentos con sub-semilla

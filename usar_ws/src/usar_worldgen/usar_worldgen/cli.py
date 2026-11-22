@@ -73,11 +73,18 @@ def params_from_args(args: argparse.Namespace) -> WorldParams:
     return params
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    """Punto de entrada de `ros2 run usar_worldgen generate`."""
+def main(argv: Optional[List[str]] = None, configure_logging: bool = True) -> int:
+    """
+    Punto de entrada de `ros2 run usar_worldgen generate`.
+
+    configure_logging=False cuando se llama dentro de otro proceso (ensure_world desde un
+    launch): logging.basicConfig cambiaría el nivel del logger raíz de ese proceso y launch
+    dejaría de mostrar sus mensajes y la salida de los nodos (nivel INFO).
+    """
     args = build_parser().parse_args(argv)
-    logging.basicConfig(level=logging.WARNING if args.quiet else logging.INFO,
-                        format='[usar_worldgen] %(levelname)s: %(message)s')
+    if configure_logging:
+        logging.basicConfig(level=logging.WARNING if args.quiet else logging.INFO,
+                            format='[usar_worldgen] %(levelname)s: %(message)s')
     logger = logging.getLogger('usar_worldgen')
     try:
         params = params_from_args(args)

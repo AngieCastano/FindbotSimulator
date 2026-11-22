@@ -207,7 +207,8 @@ def test_bridge_does_not_expose_model_poses(bridge_file):
     with open(path, 'r', encoding='utf-8') as stream:
         entries = yaml.safe_load(stream)
     # La imagen térmica es una medida del sensor (temperatura por píxel), no una posición.
-    allowed = {'/clock', '/cmd_vel', '/odom', '/tf', '/joint_states', '/scan', '/camera/image',
+    allowed = {'/clock', '/cmd_vel', '/odom', '/tf', '/joint_states', '/imu/data_raw', '/scan',
+               '/camera/image',
                '/camera/depth_image', '/camera/camera_info', '/sim/thermal/image_raw',
                '/sim/ground_truth/odom',  # pose real: solo para usar_sim_sensors
                '/sim/wheel_odom'}  # encoders ideales: solo para odom_noise_sim

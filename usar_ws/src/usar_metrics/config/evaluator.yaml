@@ -23,11 +23,16 @@ evaluator:
     # Debe ser mayor que max_time del explorador (900 s) más el arranque.
     max_mission_time: 1200.0
     map_topic: /map
-    odom_topic: /odom
+    odom_topic: /odom                 # odometría de ruedas (recorrido y error de localización)
+    ekf_topic: /odometry/filtered     # ruedas + IMU (error de localización); '' = no medir
     detections_topic: /victims/detections
     # Métricas por modalidad: cada detector publica sus propias confirmaciones (sin fusionar) en
     # <detections_topic>/<modalidad>. Se informan las que publicaron algo durante la misión.
     modalities: ["color_shape", "human_shape", "thermal", "co2", "sound", "radar"]
+    # Referencia (Fase 13): fusión "O" de estos detectores (cualquiera basta), para compararla
+    # con la fusión por puntaje del detector. Sonido y radar eran guías: no entran.
+    or_fusion_modalities: ["color_shape", "human_shape", "thermal", "co2"]
+    or_merge_distance: 1.0
     status_topic: /exploration/status
     image_dpi: 150
     # Error de localización del robot: pose de SLAM (TF map → robot_frame) y de /odom frente a

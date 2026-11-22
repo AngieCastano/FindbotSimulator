@@ -233,19 +233,37 @@ def is_blacklisted(point: Tuple[float, float], blacklist: Sequence[Tuple[float, 
     return any(np.hypot(point[0] - bx, point[1] - by) < radius for bx, by in blacklist)
 
 
-def score_frontiers(frontiers: Sequence[Frontier], alpha: float, beta: float) -> None:
-    """
-    Calcula J(g) = α·C(g) − β·I(g) con C e I normalizados a [0, 1] entre los candidatos.
+def sign_evidence(point: Tuple[float, float], signs: Sequence[Tuple[float, float]],
+                  sigma: float) -> float:
+    """S(g): suma de gaussianas (σ m) centradas en los candidatos a víctima (signos de vida)."""
+    return float(sum(math.exp(-((point[0] - sx) ** 2 + (point[1] - sy) ** 2)
+                              / (2.0 * sigma * sigma)) for sx, sy in signs))
 
-    Modifica `score` de cada frontera; las de C(g) no finito reciben J = +inf.
+
+def score_frontiers(frontiers: Sequence[Frontier], alpha: float, beta: float,
+                    gamma: float = 0.0, signs: Sequence[Tuple[float, float]] = (),
+                    sign_sigma: float = 2.0) -> None:
+    """
+    Calcula J(g) = α·C(g) − β·I(g) − γ·S(g), con C, I y S normalizados a [0, 1] entre candidatos.
+
+    S(g) es la evidencia de signos de vida cerca de la meta (candidatos a víctima de los
+    detectores guía, `signs`): con γ > 0 el robot prefiere las fronteras junto a ellos. Con
+    γ = 0 (por defecto) J es la de Yamauchi. Modifica `score` (y `extra['sign']`) de cada
+    frontera; las de C(g) no finito reciben J = +inf.
     """
     costs = np.array([f.path_cost for f in frontiers], dtype=float)
     gains = np.array([f.info_gain for f in frontiers], dtype=float)
+    evidence = np.array([sign_evidence(f.goal or f.centroid, signs, sign_sigma)
+                         if gamma > 0 and signs
+                         else 0.0 for f in frontiers], dtype=float)
     finite = np.isfinite(costs)
     c_max = costs[finite].max() if finite.any() else 1.0
     g_max = gains.max() if len(gains) and gains.max() > 0 else 1.0
-    for f, c, g, ok in zip(frontiers, costs, gains, finite):
-        f.score = (alpha * c / max(c_max, 1e-9) - beta * g / g_max) if ok else float('inf')
+    s_max = evidence.max() if len(evidence) and evidence.max() > 0 else 1.0
+    for f, c, g, s, ok in zip(frontiers, costs, gains, evidence, finite):
+        f.extra['sign'] = float(s / s_max)
+        f.score = (alpha * c / max(c_max, 1e-9) - beta * g / g_max - gamma * s / s_max) \
+            if ok else float('inf')
 
 
 def best_frontier(frontiers: Sequence[Frontier]) -> Optional[Frontier]:

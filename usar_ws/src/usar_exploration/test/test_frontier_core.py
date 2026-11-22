@@ -311,3 +311,18 @@ def test_find_view_goal_ring_sight_and_heading():
     blocked = np.zeros_like(free)
     assert fc.find_view_goal(target, robot, blocked, occupied, clearance, info,
                              0.8, 2.0, 0.3) is None
+
+
+def test_sign_evidence_term_pulls_towards_candidates():
+    """Con γ > 0 gana la frontera junto a un candidato a víctima; con γ = 0, Yamauchi."""
+    a = fc.Frontier(cells=np.zeros((1, 2)), centroid=(0, 0), goal=(0.0, 0.0), info_gain=100,
+                    path_cost=2.0)
+    b = fc.Frontier(cells=np.zeros((1, 2)), centroid=(0, 0), goal=(10.0, 0.0), info_gain=80,
+                    path_cost=2.0)
+    signs = [(10.5, 0.5)]
+    fc.score_frontiers([a, b], 1.0, 1.0, gamma=0.0, signs=signs)
+    assert fc.best_frontier([a, b]) is a
+    fc.score_frontiers([a, b], 1.0, 1.0, gamma=1.0, signs=signs, sign_sigma=2.0)
+    assert fc.best_frontier([a, b]) is b
+    assert b.extra['sign'] == pytest.approx(1.0) and a.extra['sign'] < 1e-4
+    assert fc.sign_evidence((0.0, 0.0), [(0.0, 0.0), (0.0, 0.0)], 1.0) == pytest.approx(2.0)

@@ -1,9 +1,13 @@
 # Parámetros del explorador por fronteras (Capa 4a). Ver docs/fase4_exploracion.md.
 frontier_explorer:
   ros__parameters:
-    # Función de costo J(g) = α·C(g) − β·I(g), con C e I normalizados a [0, 1] entre candidatos.
+    # Función de costo J(g) = α·C(g) − β·I(g) − γ·S(g), con C, I y S normalizados a [0, 1] entre
+    # candidatos. S(g): evidencia de signos de vida cerca de la meta (suma de gaussianas de σ
+    # sign_sigma m sobre los candidatos a víctima, /victims/candidates). γ = 0: Yamauchi.
     alpha: 1.0                  # peso del costo de trayectoria C(g)
     beta: 1.0                   # peso de la ganancia de información I(g)
+    gamma: 0.0                  # peso de los signos de vida S(g) (Fase 13: se compara γ > 0)
+    sign_sigma: 2.0             # m
 
     map_topic: /map
     costmap_topic: /global_costmap/costmap
@@ -22,7 +26,7 @@ frontier_explorer:
 
     # Meta segura asociada a cada frontera
     goal_search_radius: 1.0     # m: búsqueda de una celda con holgura alrededor de la frontera
-    min_goal_clearance: 0.45    # m al obstáculo más cercano del /map (robot_radius 0.30 + 0.15)
+    min_goal_clearance: 0.38    # m al obstáculo más cercano del /map (robot_radius 0.23 + 0.15)
     max_goal_cost: 70           # costmap global (escala 0..100): ≈ 0.47 m de un obstáculo
     min_goal_distance: 0.5      # m: descarta metas pegadas al robot
 

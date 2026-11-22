@@ -9,6 +9,7 @@ victim_detector:
       # del haz"). Sus detecciones se publican como candidatos (/victims/candidates); el
       # explorador va a mirarlos y la cámara confirma.
       cue_only: true
+      weight: 0.4                   # fusión por puntaje: guía (solo no confirma)
       window: 5.0                   # s analizados (una o dos respiraciones)
       settle_time: 2.5              # s quieto antes de la ventana (asentamiento de los pasa-altos)
       guard_time: 1.0               # s: la ventana termina antes de la última muestra (si el

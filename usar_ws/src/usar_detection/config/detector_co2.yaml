@@ -5,6 +5,7 @@ victim_detector:
     co2_topic: /co2/concentration   # usar_msgs/GasConcentration (ESP32 o usar_sim_sensors)
 
     co2:
+      weight: 0.5               # fusión por puntaje: solo no basta (ubica a ≈ 1 m, la pluma fluctúa); con calor sí
       response_tau: 20.0            # s: constante de tiempo del TGS4161 (fabricante)
       smooth_window: 4.0            # s: ventana para estimar la pendiente de la lectura
       ambient_ppm: 400.0            # línea base mientras hay pocas celdas medidas

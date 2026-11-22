@@ -19,6 +19,7 @@ victim_detector:
     map_occupied_threshold: 65      # celda ocupada del /map (igual que nav2_map_server)
 
     thermal:
+      weight: 0.6               # fusión por puntaje: solo no basta (escombros tibios); con CO₂ o radar sí
       min_temperature: 28.0         # °C: una persona vestida se ve a 30–36 °C
       max_temperature: 40.0         # °C: más caliente es una fuente artificial
       min_contrast: 5.0             # °C sobre el fondo (mediana de la imagen)

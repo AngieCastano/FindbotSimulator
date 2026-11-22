@@ -78,14 +78,15 @@ def nearest_in_time(buffer: Sequence[Tuple[float, Pose2D]], t: float,
 
 def localization_summary(rows: Sequence[Dict]) -> Optional[Dict]:
     """
-    Resumen del error de localización (SLAM y odometría de ruedas) frente a la pose real.
+    Resumen del error de localización (SLAM, odometría de ruedas y EKF) frente a la pose real.
 
-    rows: muestras con slam_error_m, slam_yaw_error_deg, odom_error_m, odom_yaw_error_deg.
+    rows: muestras con <fuente>_error_m y <fuente>_yaw_error_deg (fuente: slam, odom, ekf).
     """
     if not rows:
         return None
     out = {'n_samples': len(rows)}
-    for key in ('slam_error_m', 'slam_yaw_error_deg', 'odom_error_m', 'odom_yaw_error_deg'):
+    for key in ('slam_error_m', 'slam_yaw_error_deg', 'odom_error_m', 'odom_yaw_error_deg',
+                'ekf_error_m', 'ekf_yaw_error_deg'):
         values = np.array([r[key] for r in rows if r.get(key) is not None], dtype=float)
         if len(values) == 0:
             continue
@@ -256,3 +257,26 @@ def mean_std(values: Sequence[Optional[float]]) -> Tuple[Optional[float], Option
         return None, None, 0
     std = float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
     return float(np.mean(vals)), std, len(vals)
+
+
+def union_estimates(estimate_lists: Sequence[Sequence[Tuple[float, float]]],
+                    merge_distance: float) -> List[Tuple[float, float]]:
+    """
+    Fusión "O" de las estimaciones de varios detectores (referencia de la Fase 13).
+
+    Cada estimación es una víctima si ningún otro detector la confirmó ya a menos de
+    merge_distance; si sí, se promedia con ella. Es la regla del detector antes de la fusión por
+    puntaje: cualquier detector confirmador basta.
+    """
+    fused: List[List[float]] = []          # [x, y, n]
+    for estimates in estimate_lists:
+        for x, y in estimates:
+            near = [f for f in fused if math.hypot(f[0] - x, f[1] - y) < merge_distance]
+            if near:
+                f = min(near, key=lambda f: math.hypot(f[0] - x, f[1] - y))
+                f[0] = (f[0] * f[2] + x) / (f[2] + 1)
+                f[1] = (f[1] * f[2] + y) / (f[2] + 1)
+                f[2] += 1
+            else:
+                fused.append([float(x), float(y), 1])
+    return [(f[0], f[1]) for f in fused]

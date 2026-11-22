@@ -35,7 +35,7 @@ class WorldParams:
     # Radio de la zona libre alrededor del spawn.
     spawn_clearance: float = 1.0
     # Radio del robot usado para inflar los obstáculos en la rejilla.
-    robot_radius: float = 0.30
+    robot_radius: float = 0.23
     # Resolución de la rejilla del área explorable (igual a la del /map de SLAM).
     grid_resolution: float = 0.05
     # Distancia máxima desde una celda alcanzable hasta la víctima para considerarla alcanzable.
@@ -57,6 +57,11 @@ class WorldParams:
     # disposición del escenario).
     n_warm_debris: int = 0
     warm_debris_temperature_range: Tuple[float, float] = (28.0, 45.0)
+    # Estado de las víctimas (Fase 13): fracción que hace ruido (conscientes: piden ayuda o
+    # golpean) y fracción que respira de forma detectable. No cambian el mundo de Gazebo: las
+    # leen del ground truth los simuladores de sonido y de radar (excepción de la Capa 2).
+    vocal_fraction: float = 1.0
+    breathing_fraction: float = 1.0
     wall_height: float = 1.0
     wall_thickness: float = 0.2
     # Reintentos de generación completa (cada uno con una sub-semilla derivada).
@@ -94,6 +99,9 @@ class WorldParams:
         lo, hi = self.low_debris_height_range
         if not 0 < lo <= hi:
             raise ValueError('low_debris_height_range debe cumplir 0 < min <= max')
+        for name in ('vocal_fraction', 'breathing_fraction'):
+            if not 0.0 <= getattr(self, name) <= 1.0:
+                raise ValueError(f'{name} debe estar entre 0 y 1')
         if self.robot_radius <= 0 or self.grid_resolution <= 0:
             raise ValueError('robot_radius y grid_resolution deben ser positivos')
         if self.spawn_clearance < self.robot_radius:
@@ -154,7 +162,8 @@ class WorldParams:
             setattr(self, name, int(getattr(self, name)))
         for name in ('box_ratio', 'min_gap', 'spawn_clearance', 'robot_radius',
                      'grid_resolution', 'victim_reach_distance', 'wall_height',
-                     'wall_thickness', 'ambient_temperature_c', 'victim_temperature_c'):
+                     'wall_thickness', 'ambient_temperature_c', 'victim_temperature_c',
+                     'vocal_fraction', 'breathing_fraction'):
             setattr(self, name, float(getattr(self, name)))
 
 

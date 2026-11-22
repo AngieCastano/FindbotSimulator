@@ -37,6 +37,8 @@ from visualization_msgs.msg import Marker, MarkerArray
 PARAMS = {
     'alpha': 1.0,
     'beta': 1.0,
+    'gamma': 0.0,
+    'sign_sigma': 2.0,
     'map_topic': '/map',
     'costmap_topic': '/global_costmap/costmap',
     'global_frame': 'map',
@@ -47,7 +49,7 @@ PARAMS = {
     'segment_size': 1.5,
     'info_radius': 1.0,
     'goal_search_radius': 1.0,
-    'min_goal_clearance': 0.45,
+    'min_goal_clearance': 0.38,
     'max_goal_cost': 70,
     'max_candidates': 6,
     'min_goal_distance': 0.5,
@@ -436,7 +438,8 @@ class FrontierExplorer(Node):
 
     def _choose_and_send(self):
         """Elige argmin J(g) y envía la meta a NavigateToPose."""
-        fc.score_frontiers(self.candidates, self.p['alpha'], self.p['beta'])
+        fc.score_frontiers(self.candidates, self.p['alpha'], self.p['beta'], self.p['gamma'],
+                           self.victim_candidates, self.p['sign_sigma'])
         best = fc.best_frontier(self.candidates)
         if best is None:
             self.state = IDLE
@@ -445,7 +448,8 @@ class FrontierExplorer(Node):
         self.get_logger().info(
             f'Meta {self.goals_sent}: ({best.goal[0]:.2f}, {best.goal[1]:.2f}) '
             f'J={best.score:.3f} C={best.path_cost:.2f} m I={best.info_gain:.0f} celdas '
-            f'({len(self.candidates)} candidatos, {len(self.frontiers)} fronteras)')
+            + (f'S={best.extra.get("sign", 0.0):.2f} ' if self.p['gamma'] > 0 else '')
+            + f'({len(self.candidates)} candidatos, {len(self.frontiers)} fronteras)')
         self._send_goal(best)
         self._publish_markers()
 

@@ -1,11 +1,11 @@
-# Parámetros de Nav2 para findbot (Capa 3). Robot diferencial, radio 0.30 m (físico 0.25 + margen).
+# Parámetros de Nav2 para findbot (Capa 3). Robot diferencial, radio 0.23 m (físico 0.18 + margen).
 # Explicación de cada elección: docs/fase3_parametros_nav.md
 
 bt_navigator:
   ros__parameters:
     global_frame: map
     robot_base_frame: base_footprint
-    odom_topic: /odom
+    odom_topic: /odometry/filtered   # EKF (ruedas + IMU)
     bt_loop_duration: 10
     default_server_timeout: 20
     wait_for_service_timeout: 1000
@@ -54,7 +54,7 @@ controller_server:
       simulate_ahead_time: 1.0
       rotate_to_goal_heading: false
       # --- Regulated Pure Pursuit ---
-      desired_linear_vel: 0.35
+      desired_linear_vel: 0.25           # robot real: v ≤ 0.30 m/s
       lookahead_dist: 0.6
       min_lookahead_dist: 0.3
       max_lookahead_dist: 0.9
@@ -63,14 +63,14 @@ controller_server:
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
       approach_velocity_scaling_dist: 0.6
-      # Mantiene el centro del robot fuera de la zona inscrita del costmap (< 0.30 m de un obstáculo).
+      # Mantiene el centro del robot fuera de la zona inscrita del costmap (< 0.23 m de un obstáculo).
       # Si aun así queda dentro (p. ej. una extremidad detectada tarde), el explorador ejecuta una
       # maniobra de escape a través del collision_monitor.
       use_collision_detection: true
       max_allowed_time_to_collision_up_to_carrot: 1.0
       use_regulated_linear_velocity_scaling: true
       regulated_linear_scaling_min_radius: 0.9
-      regulated_linear_scaling_min_speed: 0.15
+      regulated_linear_scaling_min_speed: 0.10
       use_cost_regulated_linear_velocity_scaling: true
       cost_scaling_dist: 0.5
       cost_scaling_gain: 1.0
@@ -92,7 +92,7 @@ local_costmap:
       width: 5
       height: 5
       resolution: 0.05
-      robot_radius: 0.30
+      robot_radius: 0.23      # radio físico 0.18 m (esquina trasera del chasis) + 5 cm
       # El LiDAR y la cámara van en capas separadas: si compartieran capa, los rayos del LiDAR
       # (plano a 0.18 m) borrarían los obstáculos bajos que solo ve la cámara (extremidades de
       # víctimas a 0.07–0.14 m).
@@ -137,7 +137,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 2.0
-        inflation_radius: 0.70
+        inflation_radius: 0.63  # robot_radius + 0.40 m (criterio de la Fase 3)
       always_send_full_costmap: true
 
 global_costmap:
@@ -147,7 +147,7 @@ global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_footprint
-      robot_radius: 0.30
+      robot_radius: 0.23      # radio físico 0.18 m (esquina trasera del chasis) + 5 cm
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "depth_layer", "inflation_layer"]
@@ -191,7 +191,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 2.0
-        inflation_radius: 0.70
+        inflation_radius: 0.63  # robot_radius + 0.40 m (criterio de la Fase 3)
       always_send_full_costmap: true
 
 planner_server:
@@ -247,11 +247,11 @@ velocity_smoother:
     stamp_smoothed_velocity_with_smoothing_time: false
     scale_velocities: false
     feedback: "OPEN_LOOP"
-    max_velocity: [0.4, 0.0, 1.0]            # por debajo de los límites del DiffDrive (0.5, 1.5)
-    min_velocity: [-0.2, 0.0, -1.0]
-    max_accel: [1.0, 0.0, 2.0]
-    max_decel: [-1.0, 0.0, -2.0]
-    odom_topic: "odom"
+    max_velocity: [0.28, 0.0, 1.0]           # por debajo de los límites reales (0.30, 1.5)
+    min_velocity: [-0.15, 0.0, -1.0]
+    max_accel: [0.5, 0.0, 2.0]               # límites reales: a ≤ 0.5 m/s², α ≤ 2 rad/s²
+    max_decel: [-0.5, 0.0, -2.0]
+    odom_topic: "/odometry/filtered"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 1.0
@@ -271,14 +271,14 @@ collision_monitor:
     # Modo "approach": simula la trayectoria pedida (v, w) con la forma física del robot y reduce la
     # velocidad para que no haya colisión antes de time_before_collision. Un arco que se aleja de un
     # obstáculo cercano se permite; uno que va hacia él frena hasta detenerse. Polígono (desde el
-    # centro de giro): chasis x ∈ [-0.25, 0.15] m e y ∈ [-0.15, 0.15] m, ruedas hasta ±0.25 m; margen
-    # de 5 cm delante y 2 cm en el resto, esquinas traseras achaflanadas. Ningún vértice queda a más
-    # de 0.30 m del centro (= robot_radius): fuera de la zona inscrita del costmap el robot siempre
+    # centro de giro): chasis x ∈ [-0.16, 0.06] m e y ∈ [-0.08, 0.08] m, ruedas hasta ±0.111 m;
+    # margen de 5 cm delante y 2 cm en el resto, esquinas achaflanadas. Ningún vértice queda a más
+    # de 0.23 m del centro (= robot_radius): fuera de la zona inscrita del costmap el robot siempre
     # puede girar en el sitio.
     polygons: ["FootprintApproach"]
     FootprintApproach:
       type: "polygon"
-      points: "[[0.20, 0.17], [0.10, 0.27], [-0.10, 0.27], [-0.23, 0.17], [-0.27, 0.13], [-0.27, -0.13], [-0.23, -0.17], [-0.10, -0.27], [0.10, -0.27], [0.20, -0.17]]"
+      points: "[[0.11, 0.10], [0.06, 0.13], [-0.10, 0.13], [-0.16, 0.10], [-0.18, 0.07], [-0.18, -0.07], [-0.16, -0.10], [-0.10, -0.13], [0.06, -0.13], [0.11, -0.10]]"
       action_type: "approach"
       time_before_collision: 1.0
       simulation_time_step: 0.05
@@ -324,14 +324,14 @@ collision_monitor_teleop:
     # Modo "approach": simula la trayectoria pedida (v, w) con la forma física del robot y reduce la
     # velocidad para que no haya colisión antes de time_before_collision. Un arco que se aleja de un
     # obstáculo cercano se permite; uno que va hacia él frena hasta detenerse. Polígono (desde el
-    # centro de giro): chasis x ∈ [-0.25, 0.15] m e y ∈ [-0.15, 0.15] m, ruedas hasta ±0.25 m; margen
-    # de 5 cm delante y 2 cm en el resto, esquinas traseras achaflanadas. Ningún vértice queda a más
-    # de 0.30 m del centro (= robot_radius): fuera de la zona inscrita del costmap el robot siempre
+    # centro de giro): chasis x ∈ [-0.16, 0.06] m e y ∈ [-0.08, 0.08] m, ruedas hasta ±0.111 m;
+    # margen de 5 cm delante y 2 cm en el resto, esquinas achaflanadas. Ningún vértice queda a más
+    # de 0.23 m del centro (= robot_radius): fuera de la zona inscrita del costmap el robot siempre
     # puede girar en el sitio.
     polygons: ["FootprintApproach"]
     FootprintApproach:
       type: "polygon"
-      points: "[[0.20, 0.17], [0.10, 0.27], [-0.10, 0.27], [-0.23, 0.17], [-0.27, 0.13], [-0.27, -0.13], [-0.23, -0.17], [-0.10, -0.27], [0.10, -0.27], [0.20, -0.17]]"
+      points: "[[0.11, 0.10], [0.06, 0.13], [-0.10, 0.13], [-0.16, 0.10], [-0.18, 0.07], [-0.18, -0.07], [-0.16, -0.10], [-0.10, -0.13], [0.06, -0.13], [0.11, -0.10]]"
       action_type: "approach"
       time_before_collision: 1.2
       simulation_time_step: 0.05

@@ -1,0 +1,7 @@
+# Se añade encima de explorer.yaml con explorer_overlay:=<este archivo> (configuración G de la
+# Fase 13): J(g) = α·C(g) − β·I(g) − γ·S(g) con γ > 0, el robot prefiere las fronteras cerca de
+# los candidatos a víctima (signos de vida sin confirmar). Ver docs/fase13_resultados.md.
+frontier_explorer:
+  ros__parameters:
+    gamma: 0.5                  # S normalizado a [0, 1]: la mitad del peso de I(g)
+    sign_sigma: 2.0             # m

@@ -1,5 +1,7 @@
 """
-Navegación (Capa 3): simulación + slam_toolbox (online async) + Nav2 + nube de profundidad.
+Navegación (Capa 3): simulación, EKF, slam_toolbox (online async), Nav2 y nube de profundidad.
+
+El EKF (robot_localization) fusiona la odometría de las ruedas con la IMU.
 
 Uso:
     ros2 launch usar_bringup nav.launch.py seed:=42
@@ -114,6 +116,10 @@ def _launch_setup(context):
         name='lifecycle_manager_slam', output='screen',
         parameters=[config('nav2_params').perform(context), SIM_TIME])
 
+    # EKF: /odom (ruedas) + /imu/data_raw (giróscopo) → /odometry/filtered y TF odom → base.
+    ekf = Node(package='robot_localization', executable='ekf_node', name='ekf_filter_node',
+               output='screen', parameters=[config('ekf_params').perform(context), SIM_TIME])
+
     rviz = [Node(
         package='rviz2', executable='rviz2', output='log',
         arguments=['-d', config('rviz_config').perform(context)],
@@ -121,7 +127,7 @@ def _launch_setup(context):
 
     nav2 = _nav2_nodes(config('nav2_params').perform(context), config('bt_xml').perform(context))
     depth = _depth_cloud_container(config('depth_params').perform(context))
-    return [sim, slam, slam_manager, depth, *nav2, *rviz]
+    return [sim, ekf, slam, slam_manager, depth, *nav2, *rviz]
 
 
 def generate_launch_description():
@@ -147,6 +153,8 @@ def generate_launch_description():
         DeclareLaunchArgument('robot_params', default_value=os.path.join(
             description_share, 'config', 'robot.yaml')),
         DeclareLaunchArgument('slam_params', default_value=os.path.join(cfg, 'slam_toolbox.yaml')),
+        DeclareLaunchArgument('ekf_params', default_value=os.path.join(cfg, 'ekf.yaml'),
+                              description='Fusión de odometría y IMU (robot_localization)'),
         DeclareLaunchArgument('nav2_params', default_value=os.path.join(cfg, 'nav2_params.yaml')),
         DeclareLaunchArgument('bt_xml', default_value=os.path.join(
             bringup_share, 'behavior_trees', 'navigate_to_pose_no_backup.xml'),

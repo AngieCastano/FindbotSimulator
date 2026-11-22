@@ -9,7 +9,7 @@ sound_sim:
     rate: 10.0                  # Hz
     seed: 0
     # Fuentes: ráfagas (pedir ayuda, golpear) de cada víctima vocal
-    vocal_fraction: 1.0         # fracción de víctimas que hacen ruido (las demás, inconscientes)
+    vocal_fraction: 1.0         # fracción que hace ruido; manda la del escenario (ground truth)
     source_db: 65.0             # dB SPL a 1 m (voz alta / golpes en escombros)
     burst_duration: 2.0         # s
     burst_interval: [10.0, 20.0]   # s entre inicios de ráfaga (sorteado)

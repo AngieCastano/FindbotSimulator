@@ -1,0 +1,15 @@
+# Variante "hard" (Fase 13): escenario donde la cámara sola no alcanza a cubrir todo en 15 min y
+# los signos de vida tienen algo que aportar. 30 × 30 m (2,25 veces el área de default) con la
+# misma densidad de escombros, 8 víctimas cubiertas de polvo, escombros bajos que se parecen a
+# una víctima, escombros tibios (falsos positivos térmicos) y víctimas inconscientes que no
+# hacen ruido.
+# Uso: ros2 launch usar_bringup mission.launch.py seed:=1 world_params:=hard
+#      (el mundo se guarda en worlds/seed1_hard/)
+# Los demás parámetros toman los valores de default_params.yaml.
+size: [30.0, 30.0]
+n_obstacles: 90               # 40 en 400 m² → misma densidad en 900 m²
+n_victims: 8
+victim_appearance: dusty
+n_low_debris: 22              # 10 en 400 m² → misma densidad
+n_warm_debris: 3
+vocal_fraction: 0.6           # 40 % inconscientes: no hacen ruido (siguen respirando)

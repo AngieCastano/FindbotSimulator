@@ -47,6 +47,9 @@ def generate_launch_description():
         if LaunchConfiguration('use_radar').perform(context).lower() == 'true':
             # Paradas más largas: el radar necesita asentarse y analizar varias respiraciones.
             params.append(os.path.join(exploration_config, 'explorer_radar.yaml'))
+        overlay = LaunchConfiguration('explorer_overlay').perform(context)
+        if overlay:
+            params.append(overlay)                      # p. ej. explorer_gamma.yaml (Fase 13)
         return [Node(package='usar_exploration', executable='frontier_explorer',
                      name='frontier_explorer', output='screen',
                      parameters=[*params, {'use_sim_time': True}])]
@@ -63,6 +66,8 @@ def generate_launch_description():
         with open(base_params, encoding='utf-8') as stream:
             detectors = list(yaml.safe_load(stream)['victim_detector']['ros__parameters']
                              .get('detectors', []))
+        if LaunchConfiguration('camera_detection').perform(context).lower() != 'true':
+            detectors = []      # sin forma ni color: solo signos de vida (ablación, Fase 13)
         # Sensores de la fase 2: su detector se añade a la lista y sus parámetros encima.
         detection_config = os.path.join(get_package_share_directory('usar_detection'), 'config')
         for arg, name, overlay in (('use_thermal', 'thermal', 'detector_thermal.yaml'),
@@ -109,6 +114,12 @@ def generate_launch_description():
                               description='Prueba corta (explorer_quick.yaml: 5 min)'),
         DeclareLaunchArgument('detection', default_value='true',
                               description='Ejecutar el detector de víctimas'),
+        DeclareLaunchArgument('camera_detection', default_value='true',
+                              description='Detectores de la cámara (forma humana y color); false '
+                                          '= solo signos de vida'),
+        DeclareLaunchArgument('explorer_overlay', default_value='',
+                              description='YAML extra para el explorador (p. ej. '
+                                          'explorer_gamma.yaml)'),
         DeclareLaunchArgument('detector_params', default_value=os.path.join(
             get_package_share_directory('usar_detection'), 'config', 'detector.yaml')),
         DeclareLaunchArgument('results_dir', default_value=default_results,

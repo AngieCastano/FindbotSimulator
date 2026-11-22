@@ -51,6 +51,9 @@ class RadarSim(Node):
         victims = [(float(v['x']), float(v['y'])) for v in gt.get('victims', [])]
         rng = np.random.default_rng(int(self.p['seed']))
         model = {k: self.p[k] for k in DEFAULTS}
+        # Estado de las víctimas: parámetro del escenario (ground truth) si lo trae; si no, YAML.
+        model['breathing_fraction'] = float(gt.get('params', {}).get(
+            'breathing_fraction', model['breathing_fraction']))
         breathing = BreathingVictims(len(victims), model['breathing_fraction'],
                                      model['rate_bpm'], model['displacement'], rng)
         self.model = HB100Model(victims, gt.get('obstacles', []), breathing, model, rng)

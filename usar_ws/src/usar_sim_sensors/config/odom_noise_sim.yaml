@@ -8,7 +8,7 @@ odom_noise_sim:
   ros__parameters:
     input_topic: /sim/wheel_odom   # DiffDrive: encoders ideales (solo para este simulador)
     output_topic: /odom            # mismo tópico y mensaje que publica el ESP32
-    publish_tf: true               # TF odom → base_footprint (en el robot real la da el ESP32)
+    publish_tf: false              # la TF odom → base_footprint la publica el EKF (ekf.yaml)
     k_ss: 0.0005     # m²/m: error de avance por metro (radio de rueda, cuantización)
     k_st: 0.0001     # m²/rad: error de avance por radián girado
     k_ts: 0.00005    # rad²/m: error de rumbo por metro (diferencia de radios entre ruedas)

@@ -50,7 +50,9 @@ class SoundSim(Node):
             gt = yaml.safe_load(stream)
         victims = [(float(v['x']), float(v['y'])) for v in gt.get('victims', [])]
         rng = np.random.default_rng(int(self.p['seed']))
-        self.sounds = VictimSounds(len(victims), self.p['vocal_fraction'],
+        # Estado de las víctimas: parámetro del escenario (ground truth) si lo trae; si no, YAML.
+        vocal = float(gt.get('params', {}).get('vocal_fraction', self.p['vocal_fraction']))
+        self.sounds = VictimSounds(len(victims), vocal,
                                    self.p['burst_duration'], self.p['burst_interval'], rng)
         self.model = MicArrayModel(victims, gt.get('obstacles', []),
                                    {k: self.p[k] for k in DEFAULTS}, rng)

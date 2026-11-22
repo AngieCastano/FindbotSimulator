@@ -2,7 +2,8 @@
 Nodo odom_noise_sim: odometría de ruedas con el ruido de los encoders reales.
 
 Entrada:  /sim/wheel_odom (nav_msgs/Odometry de DiffDrive: encoders ideales + patinaje)
-Salida:   /odom (nav_msgs/Odometry, frame odom → base_footprint) y la TF odom → base_footprint
+Salida:   /odom (nav_msgs/Odometry, frame odom → base_footprint) y, si publish_tf, su TF (por
+          defecto la publica el EKF, que fusiona /odom con la IMU)
 
 /odom tiene el mismo formato que publicará el ESP32 con los encoders reales, de modo que SLAM y
 Nav2 no distinguen la simulación del robot. Solo lee la odometría de las ruedas, nunca la pose
@@ -75,7 +76,8 @@ class OdomNoiseSim(Node):
         for i, value in enumerate([self.model.var_xy, self.model.var_xy, big, big, big,
                                    self.model.var_yaw]):
             out.pose.covariance[7 * i] = value
-        for i, value in enumerate([self.p['sigma_v'] ** 2, big, big, big, big,
+        # vy ≈ 0 con la misma incertidumbre que vx: el robot no se desliza de lado.
+        for i, value in enumerate([self.p['sigma_v'] ** 2, self.p['sigma_v'] ** 2, big, big, big,
                                    self.p['sigma_w'] ** 2]):
             out.twist.covariance[7 * i] = value
         self.pub.publish(out)

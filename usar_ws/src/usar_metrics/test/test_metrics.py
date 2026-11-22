@@ -239,10 +239,19 @@ def test_pose_error_and_summary():
     assert nearest_in_time(buf, 1.95, 0.1).x == 2
     assert nearest_in_time(buf, 1.5, 0.1) is None
     rows = [{'slam_error_m': 0.1, 'slam_yaw_error_deg': 1.0, 'odom_error_m': 0.2,
-             'odom_yaw_error_deg': 2.0},
+             'odom_yaw_error_deg': 2.0, 'ekf_error_m': 0.15, 'ekf_yaw_error_deg': 0.5},
             {'slam_error_m': 0.3, 'slam_yaw_error_deg': 3.0, 'odom_error_m': None,
              'odom_yaw_error_deg': None}]
     s = localization_summary(rows)
     assert s['n_samples'] == 2 and s['slam_error_m_mean'] == pytest.approx(0.2)
     assert s['slam_error_m_max'] == pytest.approx(0.3) and s['odom_error_m_final'] == 0.2
+    assert s['ekf_error_m_mean'] == pytest.approx(0.15)          # solo la muestra con EKF
     assert localization_summary([]) is None
+
+
+def test_union_estimates_or_fusion():
+    from usar_metrics.metrics_core import union_estimates
+    fused = union_estimates([[(0.0, 0.0), (5.0, 5.0)], [(0.4, 0.0)], [(9.0, 9.0)]], 1.0)
+    assert len(fused) == 3
+    assert fused[0] == pytest.approx((0.2, 0.0))
+    assert union_estimates([], 1.0) == []

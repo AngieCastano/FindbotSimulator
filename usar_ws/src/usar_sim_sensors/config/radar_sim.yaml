@@ -9,7 +9,7 @@ radar_sim:
     block_size: 20              # muestras por mensaje (1 s a 20 Hz)
     seed: 0
     # Respiración de las víctimas
-    breathing_fraction: 1.0     # fracción de víctimas que respiran de forma detectable
+    breathing_fraction: 1.0     # fracción que respira; manda la del escenario (ground truth)
     rate_bpm: [12.0, 20.0]      # respiraciones por minuto (sorteado por víctima)
     displacement: [0.004, 0.008]   # m: amplitud del movimiento del pecho
     # Propagación y antena

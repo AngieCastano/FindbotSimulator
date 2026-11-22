@@ -78,6 +78,7 @@ PARAMS = {
     'min_cell_frames': 2,
     'match_distance': 1.0,
     'merge_distance': 1.0,
+    'confirm_score': 1.0,
     'min_observations': 5,
     'require_known_map': True,
     'map_topic': '/map',
@@ -188,6 +189,7 @@ class VictimDetector(Node):
         self.registry = VictimRegistry(self.p['merge_distance'], self.p['match_distance'])
         self.position_sigmas = {det.name: det.position_sigma for det in self.detectors}
         self.cue_only = {det.name for det in self.detectors if det.cue_only}
+        self.weights = {det.name: det.weight for det in self.detectors}
         self.candidates_seen = 0
         self.sensor_to_base = {}
         self.map_msg = None
@@ -531,7 +533,8 @@ class VictimDetector(Node):
         """Fusiona las confirmaciones de todos los detectores, registra eventos y publica."""
         newly, retracted = self.registry.update(
             {name: t.confirmed() for name, t in self.trackers.items()},
-            self.p['min_observations'], self.position_sigmas, self.cue_only)
+            self.p['min_observations'], self.position_sigmas, self.cue_only, self.weights,
+            self.p['confirm_score'])
         if len(self.registry.candidates) > self.candidates_seen:
             for cand in self.registry.candidates:
                 x, y, _ = cand.position

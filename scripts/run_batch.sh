@@ -11,6 +11,8 @@
 #   USE_CO2=true scripts/run_batch.sh 42             # con sensor de CO₂ y su detector
 #   USE_SOUND=true scripts/run_batch.sh 42           # con micrófonos, su detector y paradas
 #   USE_RADAR=true scripts/run_batch.sh 42           # con el radar Doppler, su detector y paradas de 11 s
+#   CAMERA_DETECTION=false USE_THERMAL=true scripts/run_batch.sh 42   # solo signos de vida
+#   EXPLORER_OVERLAY=<yaml> scripts/run_batch.sh 42  # parámetros extra del explorador (p. ej. γ)
 #
 # Variables opcionales:
 #   RESULTS_DIR      carpeta de salida (por defecto results/batch_<fecha>)
@@ -35,11 +37,16 @@ USE_THERMAL="${USE_THERMAL:-false}"
 USE_CO2="${USE_CO2:-false}"
 USE_SOUND="${USE_SOUND:-false}"
 USE_RADAR="${USE_RADAR:-false}"
+CAMERA_DETECTION="${CAMERA_DETECTION:-true}"
+EXPLORER_OVERLAY="${EXPLORER_OVERLAY:-}"
 
 if ! command -v ros2 >/dev/null 2>&1 || ! ros2 pkg prefix usar_metrics >/dev/null 2>&1; then
   # shellcheck disable=SC1091
   source "$REPO/usar_ws/install/setup.bash"
 fi
+# Salida sin búfer: con la salida redirigida a un archivo, launch (Python) la acumulaba en bloques
+# y el log de la misión podía quedarse en 2 líneas hasta el final.
+export PYTHONUNBUFFERED=1 RCUTILS_LOGGING_BUFFERED_STREAM=0
 mkdir -p "$OUT"
 extra_args=()
 [ -n "$WORLD_PARAMS" ] && extra_args+=("world_params:=$WORLD_PARAMS")
@@ -47,9 +54,11 @@ extra_args=()
 [ "$USE_CO2" = "true" ] && extra_args+=("use_co2:=true")
 [ "$USE_SOUND" = "true" ] && extra_args+=("use_sound:=true")
 [ "$USE_RADAR" = "true" ] && extra_args+=("use_radar:=true")
+[ "$CAMERA_DETECTION" = "false" ] && extra_args+=("camera_detection:=false")
+[ -n "$EXPLORER_OVERLAY" ] && extra_args+=("explorer_overlay:=$EXPLORER_OVERLAY")
 cd "$REPO/usar_ws" || exit 1   # los mundos se generan en usar_ws/worlds/
 
-echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | térmica=$USE_THERMAL | CO₂=$USE_CO2 | sonido=$USE_SOUND | radar=$USE_RADAR | resultados: $OUT"
+echo "[batch] Semillas: ${SEEDS[*]} | quick=$QUICK | world_params=${WORLD_PARAMS:-default} | térmica=$USE_THERMAL | CO₂=$USE_CO2 | sonido=$USE_SOUND | radar=$USE_RADAR | cámara=$CAMERA_DETECTION | explorador+=${EXPLORER_OVERLAY:-} | resultados: $OUT"
 failed=()
 for seed in "${SEEDS[@]}"; do
   log="$OUT/seed${seed}_launch.log"

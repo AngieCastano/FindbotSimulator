@@ -44,8 +44,9 @@ def write_timeseries(path: str, rows: Sequence[Dict]) -> None:
 
 
 POSE_FIELDS = ['sim_time', 'true_x', 'true_y', 'true_yaw', 'slam_x', 'slam_y', 'slam_yaw',
-               'odom_x', 'odom_y', 'odom_yaw', 'slam_error_m', 'slam_yaw_error_deg',
-               'odom_error_m', 'odom_yaw_error_deg']
+               'odom_x', 'odom_y', 'odom_yaw', 'ekf_x', 'ekf_y', 'ekf_yaw', 'slam_error_m',
+               'slam_yaw_error_deg', 'odom_error_m', 'odom_yaw_error_deg', 'ekf_error_m',
+               'ekf_yaw_error_deg']
 
 
 def write_pose_errors(path: str, rows: Sequence[Dict]) -> None:
@@ -58,14 +59,21 @@ def write_pose_errors(path: str, rows: Sequence[Dict]) -> None:
 
 
 def render_pose_errors(path: str, rows: Sequence[Dict], title: str, dpi: int = 150) -> None:
-    """Gráfica del error de posición y de orientación de SLAM y de la odometría en el tiempo."""
+    """Gráfica del error de posición y de orientación de SLAM, odometría y EKF en el tiempo."""
     t = np.array([r['sim_time'] for r in rows], dtype=float)
     t = t - t[0]
     fig, (ax_p, ax_y) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
     for key, label, color in (('slam', 'SLAM (map)', 'tab:red'),
-                              ('odom', 'Odometría de ruedas (odom)', 'tab:blue')):
-        ax_p.plot(t, [r[f'{key}_error_m'] for r in rows], color=color, label=label)
-        ax_y.plot(t, [r[f'{key}_yaw_error_deg'] for r in rows], color=color, label=label)
+                              ('odom', 'Odometría de ruedas (odom)', 'tab:blue'),
+                              ('ekf', 'Ruedas + IMU (EKF)', 'tab:green')):
+        if not any(r.get(f'{key}_error_m') not in (None, '') for r in rows):
+            continue
+        ts = [ti for ti, r in zip(t, rows) if r.get(f'{key}_error_m') not in (None, '')]
+        ax_p.plot(ts, [r[f'{key}_error_m'] for r in rows
+                       if r.get(f'{key}_error_m') not in (None, '')], color=color, label=label)
+        ax_y.plot(ts, [r[f'{key}_yaw_error_deg'] for r in rows
+                       if r.get(f'{key}_yaw_error_deg') not in (None, '')], color=color,
+                  label=label)
     ax_p.set_ylabel('Error de posición [m]')
     ax_y.set_ylabel('Error de orientación [°]')
     ax_y.set_xlabel('Tiempo [s]')

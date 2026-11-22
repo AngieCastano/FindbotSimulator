@@ -35,13 +35,17 @@ from usar_worldgen.ground_truth import explorable_from_ground_truth, load_ground
 from . import report
 from .metrics_core import (associate_victims, coverage, explorable_centers, GridGeometry,
                            localization_summary, map_to_world, nearest_in_time, PathIntegrator,
-                           Pose2D, pose_error, pose_to_world)
+                           Pose2D, pose_error, pose_to_world, union_estimates)
 
 PARAMS = {
     'ground_truth_file': '',
     'results_dir': 'results',
     'result_prefix': '',
     'association_threshold': 1.0,
+    # Referencia de la Fase 13: fusión "O" de los detectores confirmadores (cualquiera basta),
+    # calculada con sus confirmaciones por separado, frente a la fusión por puntaje del detector.
+    'or_fusion_modalities': ['color_shape', 'human_shape', 'thermal', 'co2'],
+    'or_merge_distance': 1.0,
     'sample_period': 10.0,
     'free_threshold': 25,
     'occupied_threshold': 65,
@@ -51,6 +55,7 @@ PARAMS = {
     'max_mission_time': 1200.0,
     'map_topic': '/map',
     'odom_topic': '/odom',
+    'ekf_topic': '/odometry/filtered',
     'detections_topic': '/victims/detections',
     # Detecciones de cada detector por separado (/victims/detections/<modalidad>): métricas por
     # modalidad sensorial. Solo se informan las modalidades que publicaron algo.
@@ -114,6 +119,7 @@ class Evaluator(Node):
         # Error de localización: búferes (tiempo, pose) de la pose real y de la odometría.
         self.true_poses = deque(maxlen=200)
         self.odom_poses = deque(maxlen=200)
+        self.ekf_poses = deque(maxlen=200)
         self.pose_rows: List[Dict] = []
         self._last_pose_stamp = None
         self.tf_buffer = tf2_ros.Buffer()
@@ -124,6 +130,10 @@ class Evaluator(Node):
         self.create_subscription(OccupancyGrid, self.p['map_topic'],
                                  lambda m: setattr(self, 'map_msg', m), latched)
         self.create_subscription(Odometry, self.p['odom_topic'], self._on_odom, 50)
+        if self.p['ekf_topic']:
+            self.create_subscription(
+                Odometry, self.p['ekf_topic'],
+                lambda m: self.end_time is None and self.ekf_poses.append(self._pose_of(m)), 50)
         self.create_subscription(VictimDetectionArray, self.p['detections_topic'],
                                  self._on_detections, 10)
         for name in self.p['modalities']:
@@ -190,13 +200,16 @@ class Evaluator(Node):
                'slam_yaw': round(slam.yaw, 4),
                'slam_error_m': round(slam_err, 4),
                'slam_yaw_error_deg': round(math.degrees(slam_yaw), 3)}
-        odom = nearest_in_time(self.odom_poses, t, tol)
-        if odom is not None:
-            odom = pose_to_world(odom, self.spawn)
-            odom_err, odom_yaw = pose_error(odom, truth)
-            row.update({'odom_x': round(odom.x, 4), 'odom_y': round(odom.y, 4),
-                        'odom_yaw': round(odom.yaw, 4), 'odom_error_m': round(odom_err, 4),
-                        'odom_yaw_error_deg': round(math.degrees(odom_yaw), 3)})
+        # Odometría de ruedas y odometría fusionada con la IMU (EKF), en el marco del mundo.
+        for key, buffer in (('odom', self.odom_poses), ('ekf', self.ekf_poses)):
+            est = nearest_in_time(buffer, t, tol)
+            if est is None:
+                continue
+            est = pose_to_world(est, self.spawn)
+            err, yaw_err = pose_error(est, truth)
+            row.update({f'{key}_x': round(est.x, 4), f'{key}_y': round(est.y, 4),
+                        f'{key}_yaw': round(est.yaw, 4), f'{key}_error_m': round(err, 4),
+                        f'{key}_yaw_error_deg': round(math.degrees(yaw_err), 3)})
         self.pose_rows.append(row)
 
     def _on_odom(self, msg: Odometry):
@@ -317,6 +330,15 @@ class Evaluator(Node):
             # Lo que habría encontrado cada detector por sí solo (sin la fusión).
             'by_modality': {name: self._victims(est).summary()
                             for name, est in sorted(self.modality_estimates.items())},
+            'modality_estimates': {
+                name: [[round(float(x), 4), round(float(y), 4)] for x, y in map_to_world(
+                    np.asarray(est, dtype=float).reshape(-1, 2), self.spawn)]
+                for name, est in sorted(self.modality_estimates.items())},
+            # Fusión "O" (cualquier detector confirmador basta), para comparar con la de puntaje.
+            'fusion_or': self._victims(union_estimates(
+                [self.modality_estimates[m] for m in self.p['or_fusion_modalities']
+                 if m in self.modality_estimates],
+                float(self.p['or_merge_distance']))).summary(),
             # Error de localización del robot frente a la pose real (None sin pose real).
             'robot_localization': localization_summary(self.pose_rows),
             'world_params': self.gt.get('params', {}),
@@ -365,6 +387,9 @@ class Evaluator(Node):
               f"recorrido {summary['distance_m']:.1f} m, víctimas {vs['detected']}/"
               f"{vs['n_victims']}, falsos positivos {vs['false_positives']}, error medio "
               f"{'-' if err is None else f'{err:.2f} m'}", flush=True)
+        fo = summary['fusion_or']
+        print(f"[evaluator]   fusión O (referencia): víctimas {fo['detected']}/{fo['n_victims']}, "
+              f"falsos positivos {fo['false_positives']}", flush=True)
         for name, mod in summary['by_modality'].items():
             print(f"[evaluator]   {name}: víctimas {mod['detected']}/{mod['n_victims']}, "
                   f"falsos positivos {mod['false_positives']}", flush=True)
@@ -374,7 +399,9 @@ class Evaluator(Node):
             print('[evaluator]   localización del robot: SLAM media '
                   f"{loc['slam_error_m_mean']:.2f} m / máx. {loc['slam_error_m_max']:.2f} m; "
                   f"odometría media {loc.get('odom_error_m_mean', nan):.2f} m / máx. "
-                  f"{loc.get('odom_error_m_max', nan):.2f} m", flush=True)
+                  f"{loc.get('odom_error_m_max', nan):.2f} m; EKF media "
+                  f"{loc.get('ekf_error_m_mean', nan):.2f} m / máx. "
+                  f"{loc.get('ekf_error_m_max', nan):.2f} m", flush=True)
         print(f"[evaluator] Resultados: {files['summary_json']}", flush=True)
         return summary
 

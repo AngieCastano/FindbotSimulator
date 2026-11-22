@@ -1,62 +1,62 @@
 # Parámetros físicos y de sensores del robot diferencial "findbot".
 # Longitudes en m, masas en kg, ángulos en rad, frecuencias en Hz.
 # El xacro (urdf/findbot.urdf.xacro) lee este archivo: no hay valores fijos en el URDF.
+# Geometría, masas y límites del robot físico: hardware/CLAUDE.md, sección "Geometría"
+# (fuente: hardware/.../robot_hw.yaml → geometry). base_link = punto medio del eje de ruedas.
 
 chassis:
-  length: 0.40          # eje x
-  width: 0.30           # eje y
-  height: 0.12
-  x_offset: -0.05       # centro del chasis respecto a base_link (el eje de ruedas va 5 cm por delante)
-  z_offset: 0.03        # centro del chasis sobre base_link (base_link = eje de ruedas)
-  mass: 5.0
+  length: 0.22          # eje x
+  width: 0.16           # eje y
+  height: 0.066
+  x_offset: -0.05       # centro del chasis respecto a base_link (x ∈ [−0.16, 0.06] m)
+  z_offset: 0.0455      # centro del chasis sobre base_link (0.078 m del suelo)
+  mass: 0.86
 
-wheels:
-  radius: 0.08
-  width: 0.04
-  separation: 0.34      # distancia entre centros de rueda
-  mass: 0.5
+wheels:                 # ruedas de los motorreductores TT
+  radius: 0.0325
+  width: 0.026
+  separation: 0.196     # distancia entre centros de rueda
+  mass: 0.03
   friction: 1.0
 
-caster:
-  radius: 0.04
-  x_offset: -0.19       # respecto a base_link (eje de ruedas)
-  mass: 0.2
+caster:                 # rueda loca de bola
+  radius: 0.0125
+  x_offset: -0.14       # respecto a base_link (eje de ruedas)
+  mass: 0.02
 
-diff_drive:
-  max_linear_velocity: 0.5
+diff_drive:             # límites reales del robot (hardware/CLAUDE.md)
+  max_linear_velocity: 0.30
   max_angular_velocity: 1.5
-  max_linear_acceleration: 1.0
+  max_linear_acceleration: 0.5
   max_angular_acceleration: 2.0
   odom_publish_frequency: 30
 
-lidar:                  # LiDAR 2D 360°
-  x: 0.0
-  z: 0.10               # sobre base_link → plano de escaneo a 0.18 m del suelo
-  update_rate: 10
-  samples: 360
-  min_range: 0.12
+lidar:                  # LiDAR 2D 360° (RPLiDAR A1)
+  x: -0.03
+  z: 0.1125             # sobre base_link → plano de escaneo a 0.145 m del suelo
+  update_rate: 5.5
+  samples: 720          # 0.5° (el A1 da ≈ 1450 puntos por vuelta a 5.5 Hz; 720 basta para SLAM)
+  min_range: 0.15
   max_range: 12.0
   range_resolution: 0.01
   noise_stddev: 0.01    # ruido gaussiano (m)
 
-camera:                 # cámara RGB-D frontal, en la cara delantera del chasis
-  x: 0.155              # respecto a base_link: cara delantera del chasis (0.15 m)
-  z: 0.04               # sobre base_link → 0.12 m del suelo (bajo el plano del LiDAR)
+camera:                 # cámara RGB-D frontal (Intel RealSense D435), en la cara delantera del chasis
+  x: 0.055              # respecto a base_link: cara delantera del chasis (0.06 m)
+  z: 0.091              # sobre base_link → 0.1235 m del suelo (bajo el plano del LiDAR)
   pitch: 0.0
   update_rate: 15
   width: 640
   height: 480
   horizontal_fov: 1.2   # ~69°
-  near: 0.05            # recorte cercano: ve obstáculos bajos casi pegados al frontal
+  near: 0.2             # distancia mínima de la profundidad del D435 (~0.20 m)
   far: 10.0
   noise_stddev: 0.007
 
 thermal:                # cámara térmica MLX90640 (versión BAA, 55° × 35°); fase 2: use_thermal:=true
-  # Posición relativa a la cámara RGB-D como en el robot físico (hardware/CLAUDE.md, Geometría):
-  # 6 cm a la derecha y 3 mm más abajo. Pendiente: alinear toda la geometría con el hardware.
-  x: 0.155
+  x: 0.055
   y: -0.06
-  z: 0.037              # sobre base_link → 0.117 m del suelo
+  z: 0.088              # sobre base_link → 0.1205 m del suelo
   pitch: 0.0
   update_rate: 4        # Hz (el MLX90640 admite 0.5–64 Hz; a más frecuencia, más ruido)
   width: 32
@@ -65,22 +65,31 @@ thermal:                # cámara térmica MLX90640 (versión BAA, 55° × 35°)
   near: 0.1
   far: 20.0
 
+imu:                    # IMU 6 ejes MPU6050 en la PCB, alineada con base_link
+  x: 0.0
+  y: 0.0
+  z: 0.0255             # sobre base_link → 0.058 m del suelo
+  update_rate: 100      # = PERIOD_IMU_US del firmware (10 ms)
+  # Ruido tras la calibración de arranque del firmware (IMU_CALIB_SAMPLES), DLPF ≈ 44 Hz:
+  gyro_noise_stddev: 0.0006     # rad/s (densidad 0.005 °/s/√Hz)
+  gyro_bias_stddev: 0.00017     # rad/s: sesgo residual tras calibrar (≈ 0.01 °/s, deriva térmica)
+  # Nota: Gazebo publica como covarianza solo el ruido blanco (no el sesgo); el EKF integra el
+  # sesgo sin corregirlo: ≈ 9° de rumbo en 15 min, que SLAM corrige (docs/fase13_resultados.md).
+  accel_noise_stddev: 0.03      # m/s² (densidad 400 µg/√Hz)
+  accel_bias_stddev: 0.05       # m/s²
+
 co2:                    # sensor de CO₂ Figaro TGS4161 (fase 2: use_co2:=true)
-  # Posición respecto a base_link tomada de hardware/CLAUDE.md (Geometría). Pendiente: alinear
-  # toda la geometría del robot simulado con el hardware.
   x: 0.03
   y: 0.05
   z: 0.0275
 
 mic_array:              # ReSpeaker USB Mic Array v2.0 (fase 2: use_sound:=true)
-  # Posición respecto a base_link tomada de hardware/CLAUDE.md (Geometría). Pendiente: alinear
-  # toda la geometría del robot simulado con el hardware.
   x: -0.12
   y: 0.0
   z: 0.0835
 
 radar:                  # radar Doppler HB100 10,525 GHz (fase 2: use_radar:=true)
-  # Posición respecto a base_link tomada de hardware/CLAUDE.md (Geometría); antena hacia +x.
+  # Antena hacia +x.
   x: 0.06
   y: 0.0
   z: 0.037

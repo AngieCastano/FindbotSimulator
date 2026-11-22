@@ -99,3 +99,38 @@ def test_dusty_params_file(generate):
     _, gt = generate('--params', path, '--seed', '42', name='dp')
     assert gt['params']['victim_appearance'] == 'dusty'
     assert gt['params']['n_low_debris'] > 0
+
+
+def test_dataclass_defaults_match_default_params_yaml():
+    """
+    Los valores por defecto de WorldParams coinciden con config/default_params.yaml.
+
+    Una variante solo fija algunos parámetros y el resto sale de WorldParams (antes
+    robot_radius se quedó en 0.30 allí).
+    """
+    import dataclasses
+    import os
+
+    import yaml
+    from usar_worldgen.params import WorldParams
+
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'config', 'default_params.yaml')
+    with open(path, encoding='utf-8') as stream:
+        expected = yaml.safe_load(stream)
+    defaults = {f.name: f.default for f in dataclasses.fields(WorldParams)}
+    for key, value in expected.items():
+        got = defaults[key]
+        assert (list(got) if isinstance(got, tuple) else got) == value, key
+
+
+def test_ensure_world_keeps_root_logging(tmp_path):
+    """Generar el mundo desde un launch no debe cambiar el logging del proceso (logs vacíos)."""
+    import logging
+
+    from usar_worldgen.worlds import ensure_world
+
+    root = logging.getLogger()
+    level, handlers = root.level, list(root.handlers)
+    ensure_world(3, str(tmp_path))
+    assert root.level == level and root.handlers == handlers

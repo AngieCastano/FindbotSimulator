@@ -89,7 +89,7 @@ def ensure_world(seed: int, worlds_dir: str, world_params: str = '',
         args += ['--params', params_path]
     expected = params_from_args(build_parser().parse_args(args)).to_dict()
     if not _is_current(world_dir, expected):
-        if generate_world_cli(args + ['--quiet']) != 0:
+        if generate_world_cli(args + ['--quiet'], configure_logging=False) != 0:
             variant = tag or 'default'
             raise RuntimeError(f'No se pudo generar el mundo de la semilla {seed} ({variant})')
     return world_dir

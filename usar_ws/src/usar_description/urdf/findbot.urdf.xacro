@@ -5,9 +5,9 @@
 
   Árbol de frames:
     base_footprint → base_link → {left_wheel_link, right_wheel_link, caster_link,
-                                  lidar_link, camera_link → camera_optical_frame,
+                                  lidar_link, imu_link, camera_link → camera_optical_frame,
                                   [thermal_link → thermal_optical_frame], [co2_link],
-                                  [mic_array_link]}
+                                  [mic_array_link], [radar_link]}
   Los sensores de la fase 2 solo se incluyen con use_thermal:=true / use_co2:=true /
   use_sound:=true / use_radar:=true.
   sim_pose:=true añade la pose real del robot (/sim/ground_truth/odom) para los simuladores de
@@ -28,6 +28,7 @@
   <xacro:property name="dd" value="${p['diff_drive']}"/>
   <xacro:property name="ld" value="${p['lidar']}"/>
   <xacro:property name="cam" value="${p['camera']}"/>
+  <xacro:property name="imu" value="${p['imu']}"/>
   <xacro:property name="th" value="${p['thermal']}"/>
   <xacro:property name="co2" value="${p['co2']}"/>
   <xacro:property name="mic" value="${p['mic_array']}"/>
@@ -189,6 +190,52 @@
           <stddev>${ld['noise_stddev']}</stddev>
         </noise>
       </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- ===================== IMU (MPU6050) ===================== -->
+  <!-- Giróscopo y acelerómetro con ruido y sesgo residual tras la calibración del firmware.
+       /imu/data_raw lo fusiona el EKF (robot_localization) con /odom, como en el robot real. -->
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="${imu['x']} ${imu['y']} ${imu['z']}"/>
+  </joint>
+  <link name="imu_link">
+    <visual>
+      <geometry><box size="0.02 0.016 0.003"/></geometry>
+      <material name="findbot_black"/>
+    </visual>
+    <xacro:box_inertia m="0.002" x="0.02" y="0.016" z="0.003"/>
+  </link>
+
+  <xacro:macro name="imu_noise" params="stddev bias">
+    <noise type="gaussian">
+      <mean>0.0</mean>
+      <stddev>${stddev}</stddev>
+      <bias_mean>0.0</bias_mean>
+      <bias_stddev>${bias}</bias_stddev>
+    </noise>
+  </xacro:macro>
+
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <gz_frame_id>imu_link</gz_frame_id>
+      <topic>/imu/data_raw</topic>
+      <update_rate>${imu['update_rate']}</update_rate>
+      <always_on>true</always_on>
+      <imu>
+        <angular_velocity>
+          <x><xacro:imu_noise stddev="${imu['gyro_noise_stddev']}" bias="${imu['gyro_bias_stddev']}"/></x>
+          <y><xacro:imu_noise stddev="${imu['gyro_noise_stddev']}" bias="${imu['gyro_bias_stddev']}"/></y>
+          <z><xacro:imu_noise stddev="${imu['gyro_noise_stddev']}" bias="${imu['gyro_bias_stddev']}"/></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><xacro:imu_noise stddev="${imu['accel_noise_stddev']}" bias="${imu['accel_bias_stddev']}"/></x>
+          <y><xacro:imu_noise stddev="${imu['accel_noise_stddev']}" bias="${imu['accel_bias_stddev']}"/></y>
+          <z><xacro:imu_noise stddev="${imu['accel_noise_stddev']}" bias="${imu['accel_bias_stddev']}"/></z>
+        </linear_acceleration>
+      </imu>
     </sensor>
   </gazebo>
 
@@ -389,6 +436,9 @@
             name="gz::sim::systems::JointStatePublisher">
       <topic>/joint_states</topic>
     </plugin>
+
+    <!-- Sistema que calcula las lecturas de los sensores IMU (no lo carga el mundo). -->
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
   </gazebo>
 
 </robot>

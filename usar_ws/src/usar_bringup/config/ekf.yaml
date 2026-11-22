@@ -1,0 +1,32 @@
+# Fusión de odometría (Capa 3): robot_localization combina la velocidad de las ruedas (/odom) con
+# la velocidad angular del giróscopo (/imu/data_raw) → /odometry/filtered y la TF
+# odom → base_footprint. Igual en simulación y en el robot real (CLAUDE.md, "Arquitectura").
+# El giro medido por las ruedas es poco fiable (patinaje, separación efectiva de las ruedas);
+# el del giróscopo calibrado no depende del contacto con el suelo.
+ekf_filter_node:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.2
+    two_d_mode: true               # robot planar: x, y, yaw
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom              # SLAM publica map → odom
+
+    # Ruedas: velocidad lineal (vx) y lateral (vy ≈ 0, robot no holonómico) y giro (vyaw).
+    #          [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+    odom0: /odom
+    odom0_config: [false, false, false, false, false, false,
+                   true, true, false, false, false, true,
+                   false, false, false]
+    odom0_queue_size: 10
+
+    # IMU: solo la velocidad angular en z (la aceleración del MPU6050 es demasiado ruidosa para
+    # integrarla; no aporta a un robot planar lento).
+    imu0: /imu/data_raw
+    imu0_config: [false, false, false, false, false, false,
+                  false, false, false, false, false, true,
+                  false, false, false]
+    imu0_queue_size: 20
+    imu0_remove_gravitational_acceleration: true

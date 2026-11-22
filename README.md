@@ -224,6 +224,8 @@ visión de 69°.
 |---|---|---|
 | `/scan` | `sensor_msgs/LaserScan` | Gazebo → SLAM, costmaps, collision monitor |
 | `/odom` | `nav_msgs/Odometry` | `odom_noise_sim` (odometría de ruedas de Gazebo con ruido de encoders) → SLAM, Nav2, evaluador |
+| `/imu/data_raw` | `sensor_msgs/Imu` (MPU6050, 100 Hz) | Gazebo (o el ESP32) → EKF |
+| `/odometry/filtered` | `nav_msgs/Odometry` (ruedas + IMU) | EKF (`robot_localization`, publica la TF odom → base_footprint) → Nav2, evaluador |
 | `/radar/signal` | `usar_msgs/RadarSignal` (señal IF del HB100, 20 Hz; `use_radar:=true`) | `radar_sim` (o el ESP32) → detector |
 | `/camera/image`, `/camera/depth_image`, `/camera/camera_info` | `sensor_msgs/Image`, `CameraInfo` | Gazebo → detector, nube de profundidad |
 | `/map` | `nav_msgs/OccupancyGrid` | slam_toolbox → Nav2, explorador, evaluador |

@@ -10,6 +10,7 @@ victim_detector:
       # misión. Sus estimaciones se publican como candidatos (/victims/candidates); el
       # explorador va a mirarlos y la cámara confirma. Ver docs/fase11_sonido.md.
       cue_only: true
+      weight: 0.3                   # fusión por puntaje: guía (solo no confirma)
       min_confidence: 0.1           # confianza mínima de la dirección (SNR)
       stationary_window: 1.0        # s: el robot debe estar quieto este tiempo...
       stationary_motion: 0.03       # m ...sin moverse más de esto...

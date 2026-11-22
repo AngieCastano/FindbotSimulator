@@ -13,8 +13,9 @@ import yaml
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XACRO_FILE = os.path.join(PKG_DIR, 'urdf', 'findbot.urdf.xacro')
 PARAMS_FILE = os.path.join(PKG_DIR, 'config', 'robot.yaml')
-# Radio con el que usar_worldgen infla obstáculos (config/default_params.yaml).
-WORLDGEN_ROBOT_RADIUS = 0.30
+# Radio con el que usar_worldgen infla obstáculos (= robot_radius de Nav2).
+WORLDGEN_PARAMS = os.path.join(os.path.dirname(PKG_DIR), 'usar_worldgen', 'config',
+                               'default_params.yaml')
 
 
 @pytest.fixture(scope='module')
@@ -33,7 +34,8 @@ def test_frames_and_joints(urdf_xml):
     root = ET.fromstring(urdf_xml)
     links = {link.get('name') for link in root.findall('link')}
     assert links == {'base_footprint', 'base_link', 'left_wheel_link', 'right_wheel_link',
-                     'caster_link', 'lidar_link', 'camera_link', 'camera_optical_frame'}
+                     'caster_link', 'lidar_link', 'imu_link', 'camera_link',
+                     'camera_optical_frame'}
     joints = {j.get('name'): j.get('type') for j in root.findall('joint')}
     assert joints['left_wheel_joint'] == joints['right_wheel_joint'] == 'continuous'
 
@@ -46,9 +48,13 @@ def test_sensors_and_plugins(urdf_xml):
     assert sensors['lidar'].find('lidar/noise/type').text == 'gaussian'
     assert sensors['rgbd_camera'].get('type') == 'rgbd_camera'
     assert sensors['rgbd_camera'].findtext('gz_frame_id') == 'camera_optical_frame'
+    assert sensors['imu'].get('type') == 'imu'
+    assert sensors['imu'].findtext('topic') == '/imu/data_raw'
+    assert sensors['imu'].find('imu/angular_velocity/z/noise/stddev') is not None
     plugins = {p.get('name') for p in root.iter('plugin')}
     assert 'gz::sim::systems::DiffDrive' in plugins
     assert 'gz::sim::systems::JointStatePublisher' in plugins
+    assert 'gz::sim::systems::Imu' in plugins
 
 
 def test_footprint_fits_worldgen_radius(params):
@@ -57,7 +63,29 @@ def test_footprint_fits_worldgen_radius(params):
     # Distancias medidas desde base_footprint (centro de giro, sobre el eje de ruedas).
     corners = math.hypot(abs(ch['x_offset']) + ch['length'] / 2, ch['width'] / 2)
     wheel = wh['separation'] / 2 + wh['radius']  # colisión esférica de la rueda
-    assert max(corners, wheel) <= WORLDGEN_ROBOT_RADIUS
+    with open(WORLDGEN_PARAMS, encoding='utf-8') as stream:
+        radius = yaml.safe_load(stream)['robot_radius']
+    assert max(corners, wheel) <= radius
+    assert radius - max(corners, wheel) == pytest.approx(0.05, abs=0.01)   # margen de 5 cm
+
+
+def test_geometry_matches_hardware(params):
+    """Posiciones y medidas de hardware/CLAUDE.md (sección Geometría), respecto a base_link."""
+    ch, wh, cs = params['chassis'], params['wheels'], params['caster']
+    assert (ch['length'], ch['width'], ch['height']) == pytest.approx((0.22, 0.16, 0.066))
+    assert (ch['x_offset'], ch['z_offset']) == pytest.approx((-0.05, 0.0455))
+    assert (wh['radius'], wh['width'], wh['separation']) == pytest.approx((0.0325, 0.026, 0.196))
+    assert (cs['radius'], cs['x_offset']) == pytest.approx((0.0125, -0.14))
+    assert (params['lidar']['x'], params['lidar']['z']) == pytest.approx((-0.03, 0.1125))
+    assert (params['camera']['x'], params['camera']['z']) == pytest.approx((0.055, 0.091))
+    imu = params['imu']
+    assert (imu['x'], imu['y'], imu['z']) == pytest.approx((0.0, 0.0, 0.0255))
+    rad = params['radar']
+    assert (rad['x'], rad['y'], rad['z']) == pytest.approx((0.06, 0.0, 0.037))
+    dd = params['diff_drive']
+    assert dd['max_linear_velocity'] <= 0.30 and dd['max_linear_acceleration'] <= 0.5
+    # Nada por encima del plano del LiDAR (0.145 m del suelo).
+    assert wh['radius'] + params['lidar']['z'] == pytest.approx(0.145)
 
 
 def test_lidar_plane_below_min_obstacle_height(params):
