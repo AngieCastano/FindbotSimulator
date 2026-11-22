@@ -205,8 +205,11 @@ def render_comparison(path: str, gt: Dict, map_data: np.ndarray, geometry: GridG
     margin = 0.5
     extra = np.array([*victims.false_positives,
                       *(m.estimated_xy for m in victims.matches if m.detected)]).reshape(-1, 2)
-    ax.set_xlim(min(x_min, *extra[:, 0]) - margin, max(x_max, *extra[:, 0]) + margin)
-    ax.set_ylim(min(y_min, *extra[:, 1]) - margin, max(y_max, *extra[:, 1]) + margin)
+    # Sin estimaciones (ninguna víctima ni falso positivo), solo los límites del escenario.
+    xs = np.concatenate([[x_min, x_max], extra[:, 0]])
+    ys = np.concatenate([[y_min, y_max], extra[:, 1]])
+    ax.set_xlim(xs.min() - margin, xs.max() + margin)
+    ax.set_ylim(ys.min() - margin, ys.max() + margin)
     ax.set_aspect('equal')
     ax.set_xlabel('x [m]')
     ax.set_ylabel('y [m]')

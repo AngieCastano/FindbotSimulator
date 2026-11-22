@@ -307,6 +307,15 @@ class Evaluator(Node):
             self.write_results()
             self.done = True
 
+    def _render(self, files, key, suffix, render, *args):
+        """Dibuja una gráfica; si falla, lo informa y sigue (el JSON no debe perderse)."""
+        path = self.base + suffix
+        try:
+            render(path, *args)
+            files[key] = path
+        except Exception as error:  # noqa: BLE001 — una gráfica nunca debe tumbar el resumen
+            self.get_logger().error(f'No se pudo dibujar {os.path.basename(path)}: {error!r}')
+
     def write_results(self) -> Optional[Dict]:
         """Calcula el resumen final y escribe todos los archivos."""
         if self.end_time is None:
@@ -362,21 +371,18 @@ class Evaluator(Node):
             files['map_pgm'], files['map_yaml'] = report.write_map(
                 self.base + '_map', data, geometry, int(self.p['free_threshold']),
                 int(self.p['occupied_threshold']))
-            files['comparison_png'] = self.base + '_comparison.png'
             trajectory = map_to_world(np.asarray(self.trajectory).reshape(-1, 2), self.spawn)
-            report.render_comparison(files['comparison_png'], self.gt, data, geometry,
-                                     self.spawn, victims, trajectory, summary,
-                                     int(self.p['free_threshold']),
-                                     int(self.p['occupied_threshold']),
-                                     int(self.p['image_dpi']))
+            self._render(files, 'comparison_png', '_comparison.png', report.render_comparison,
+                         self.gt, data, geometry, self.spawn, victims, trajectory, summary,
+                         int(self.p['free_threshold']), int(self.p['occupied_threshold']),
+                         int(self.p['image_dpi']))
         if self.pose_rows:
             files['pose_csv'] = self.base + '_pose.csv'
             report.write_pose_errors(files['pose_csv'], self.pose_rows)
-            files['pose_error_png'] = self.base + '_pose_error.png'
-            report.render_pose_errors(
-                files['pose_error_png'], self.pose_rows,
-                f"Semilla {summary['seed']}: error de localización del robot",
-                int(self.p['image_dpi']))
+            self._render(files, 'pose_error_png', '_pose_error.png', report.render_pose_errors,
+                         self.pose_rows,
+                         f"Semilla {summary['seed']}: error de localización del robot",
+                         int(self.p['image_dpi']))
         files['summary_json'] = self.base + '.json'
         report.write_json(files['summary_json'], summary)
 

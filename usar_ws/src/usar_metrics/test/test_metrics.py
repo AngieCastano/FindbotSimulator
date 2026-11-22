@@ -255,3 +255,22 @@ def test_union_estimates_or_fusion():
     assert len(fused) == 3
     assert fused[0] == pytest.approx((0.2, 0.0))
     assert union_estimates([], 1.0) == []
+
+
+def test_comparison_without_estimates(tmp_path):
+    """Una misión sin estimaciones (0 víctimas, 0 falsos positivos) también tiene su gráfica."""
+    import numpy as np
+    from usar_metrics import report
+    from usar_metrics.metrics_core import associate_victims, GridGeometry, Pose2D
+
+    gt = {'seed': 1, 'bounds': {'x_min': -5.0, 'x_max': 5.0, 'y_min': -5.0, 'y_max': 5.0},
+          'obstacles': [], 'victims': [{'id': 0, 'name': 'victim_00', 'x': 1.0, 'y': 1.0,
+                                        'yaw': 0.0, 'length': 1.7, 'width': 0.6}]}
+    victims = associate_victims([], gt['victims'], 1.0)
+    geometry = GridGeometry(-5.0, -5.0, 0.05, 200, 200)
+    summary = {'coverage_pct': 10.0, 'victims': victims.summary(), 'exploration_time_s': 900.0,
+               'distance_m': 5.0, 'end_reason': 'timeout'}
+    path = tmp_path / 'c.png'
+    report.render_comparison(str(path), gt, np.full(200 * 200, -1), geometry,
+                             Pose2D(0.0, 0.0, 0.0), victims, np.zeros((0, 2)), summary, 25, 65)
+    assert path.exists()
